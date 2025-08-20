@@ -1,5 +1,5 @@
 """
-Runner mínimo para probar el flujo MVC de energía.
+Main energy_analysis:
 - Crea un ParentAppStub con lo justo para poblar combos/valores.
 - No contiene lógica de negocio.
 """

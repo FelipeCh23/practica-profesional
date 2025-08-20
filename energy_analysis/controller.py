@@ -1,5 +1,5 @@
 """
-Controlador (MVC) para EnergyAnalysis.
+controller energy_analysis:
 - Lee la vista, actualiza el modelo y ordena la representación.
 - No contiene cálculo numérico (eso vive en model.py).
 """

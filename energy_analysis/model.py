@@ -1,5 +1,5 @@
 """
-Modelo EnergyAnalysis.
+Model energy_analysis
 - Mantiene parámetros.
 - Recupera geometrías/propiedades (stubs).
 - Calcula campos 2D/3D (placeholders, listos para reemplazar por Kleine).

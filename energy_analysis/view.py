@@ -1,5 +1,5 @@
 """
-Vista (MVC) para EnergyAnalysis.
+view energy_analysis:
 - Solo UI: define StringVar con los mismos nombres del app original.
 - No hace cálculos ni validaciones.
 - Expone: bind_actions(on_plot2d, on_plot3d), get_form_data(), render_contours(), render_error().
