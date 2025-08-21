@@ -1,111 +1,176 @@
 """
-view energy_analysis:
-- Solo UI: define StringVar con los mismos nombres del app original.
-- No hace cálculos ni validaciones.
-- Expone: bind_actions(on_plot2d, on_plot3d), get_form_data(), render_contours(), render_error().
+Vista (UI) de EnergyAnalysis.
+
+Responsabilidad:
+- Definir los controles (StringVar) con los mismos nombres de parámetros.
+- Armar el layout en español (similar al original).
+- Exponer callbacks que el Controller registra.
+- Renderizar el resultado 2D con matplotlib (contourf + colorbar).
+
+No realiza cálculos: solo recoge entradas y muestra salidas.
 """
 
 import customtkinter as ctk
 import matplotlib.pyplot as plt
-from tkinter import messagebox
 
 
-class View(ctk.CTkToplevel):
-    def __init__(self, parent_app):
+class View(ctk.CTk):
+    def __init__(self, parent_app=None):
         super().__init__()
-        self.parent_app = parent_app
+        self.title("Análisis de Energía (Kleine)")
+        self.geometry("700x480")
 
-        self.title('Análisis de Energía (Kleine)')
-        self.geometry('560x240')
-        self.grab_set()
+        # Variables de la vista (nombres preservados)
+        self.pattern = ctk.StringVar(value="PatronDemo")
+        self.section = ctk.StringVar(value="Transversal")
+        self.type    = ctk.StringVar(value="Volumen")
 
-        # === Variables (mismos nombres que en EnergyAnalysis) ===
-        self.pattern = ctk.StringVar()
-        self.section = ctk.StringVar(value='Transversal')
-        self.type    = ctk.StringVar(value='Volumen')
-        self.xmin = ctk.StringVar(value='0.0'); self.xmax = ctk.StringVar(value='10.0')
-        self.ymin = ctk.StringVar(value='0.0'); self.ymax = ctk.StringVar(value='10.0')
-        self.zmin = ctk.StringVar(value='0.0'); self.zmax = ctk.StringVar(value='10.0')
-        self.cutoff = ctk.StringVar(value='1.0')
-        self.resol  = ctk.StringVar(value='50')
-        self.levels = ctk.StringVar(value='10')
-        self.diameter = ctk.StringVar(value='0.0')
-        self.density  = ctk.StringVar(value='0.0')
-        self.K_const  = ctk.StringVar(value='200')
-        self.a_const  = ctk.StringVar(value='0.9')
+        self.resol   = ctk.StringVar(value="50")
+        self.xmin = ctk.StringVar(value="0.0"); self.xmax = ctk.StringVar(value="10.0")
+        self.ymin = ctk.StringVar(value="0.0"); self.ymax = ctk.StringVar(value="10.0")
+        self.zmin = ctk.StringVar(value="0.0"); self.zmax = ctk.StringVar(value="10.0")
+        self.cutoff  = ctk.StringVar(value="1.0")
+        self.levels  = ctk.StringVar(value="10")
+        self.diameter= ctk.StringVar(value="0.0")
+        self.density = ctk.StringVar(value="0.0")
+        self.K_const = ctk.StringVar(value="200.0")
+        self.a_const = ctk.StringVar(value="0.9")
+
+        # Callbacks (los registrará el Controller)
+        self.on_compute_grid = None
+        self.on_compute_iso  = None
 
         self._build_ui()
 
+    # ----------------------- UI ------------------------------------------------
+
     def _build_ui(self):
-        list_patterns = list(getattr(self.parent_app, "designs", {}).get("charges", {"PatronDemo":{}}).keys())
-        list_sections = ['Transversal', 'Longitudinal', 'Planta']
-        list_types    = ['Volumen', 'Tonelaje']
+        pad = {"padx": 8, "pady": 6}
+        f = ctk.CTkFrame(self)
+        f.pack(fill="both", expand=True, padx=10, pady=10)
 
         row = 0
-        ctk.CTkLabel(self, text='Patrón:').grid(row=row, column=0, padx=6, pady=6, sticky='e')
-        cb = ctk.CTkComboBox(self, values=list_patterns, variable=self.pattern, state='readonly', width=180)
-        cb.grid(row=row, column=1, padx=6, pady=6, sticky='w')
-        if list_patterns: cb.set(list_patterns[0])
+        # Patrón / Sección
+        ctk.CTkLabel(f, text="Patrón:").grid(row=row, column=0, sticky="e", **pad)
+        ctk.CTkEntry(f, textvariable=self.pattern, width=160).grid(row=row, column=1, **pad)
+        ctk.CTkLabel(f, text="Sección:").grid(row=row, column=2, sticky="e", **pad)
+        ctk.CTkOptionMenu(f, values=["Transversal","Longitudinal","Planta"],
+                          variable=self.section, width=140).grid(row=row, column=3, **pad)
 
-        ctk.CTkLabel(self, text='Sección:').grid(row=row, column=2, padx=6, pady=6, sticky='e')
-        ctk.CTkComboBox(self, values=list_sections, variable=self.section, state='readonly', width=140)\
-            .grid(row=row, column=3, padx=6, pady=6, sticky='w')
-
+        # Tipo / Resolución
         row += 1
-        ctk.CTkLabel(self, text='Tipo:').grid(row=row, column=0, padx=6, pady=6, sticky='e')
-        ctk.CTkComboBox(self, values=list_types, variable=self.type, state='readonly', width=180)\
-            .grid(row=row, column=1, padx=6, pady=6, sticky='w')
+        ctk.CTkLabel(f, text="Tipo:").grid(row=row, column=0, sticky="e", **pad)
+        ctk.CTkOptionMenu(f, values=["Volumen","Tonelaje"],
+                          variable=self.type, width=140).grid(row=row, column=1, **pad)
+        ctk.CTkLabel(f, text="Resolución:").grid(row=row, column=2, sticky="e", **pad)
+        ctk.CTkEntry(f, textvariable=self.resol, width=100).grid(row=row, column=3, **pad)
 
-        ctk.CTkLabel(self, text='Resolución:').grid(row=row, column=2, padx=6, pady=6, sticky='e')
-        ctk.CTkEntry(self, textvariable=self.resol, width=140).grid(row=row, column=3, padx=6, pady=6, sticky='w')
-
+        # xmin/xmax
         row += 1
-        for i, (lab, var) in enumerate([('xmin', self.xmin), ('xmax', self.xmax), ('ymin', self.ymin), ('ymax', self.ymax)]):
-            ctk.CTkLabel(self, text=lab + ':').grid(row=row + i//2, column=(i%2)*2, padx=6, pady=6, sticky='e')
-            ctk.CTkEntry(self, textvariable=var, width=180).grid(row=row + i//2, column=(i%2)*2 + 1, padx=6, pady=6, sticky='w')
-        row += 2
+        ctk.CTkLabel(f, text="xmin:").grid(row=row, column=0, sticky="e", **pad)
+        ctk.CTkEntry(f, textvariable=self.xmin, width=100).grid(row=row, column=1, **pad)
+        ctk.CTkLabel(f, text="xmax:").grid(row=row, column=2, sticky="e", **pad)
+        ctk.CTkEntry(f, textvariable=self.xmax, width=100).grid(row=row, column=3, **pad)
 
-        self.btn_plot2d = ctk.CTkButton(self, text='Contornos 2D')
-        self.btn_plot2d.grid(row=row, column=0, columnspan=2, pady=(10,6))
+        # ymin/ymax
+        row += 1
+        ctk.CTkLabel(f, text="ymin:").grid(row=row, column=0, sticky="e", **pad)
+        ctk.CTkEntry(f, textvariable=self.ymin, width=100).grid(row=row, column=1, **pad)
+        ctk.CTkLabel(f, text="ymax:").grid(row=row, column=2, sticky="e", **pad)
+        ctk.CTkEntry(f, textvariable=self.ymax, width=100).grid(row=row, column=3, **pad)
 
-        self.btn_plot3d = ctk.CTkButton(self, text='Isosuperficie 3D')
-        self.btn_plot3d.grid(row=row, column=2, columnspan=2, pady=(10,6))
+        # zmin/zmax
+        row += 1
+        ctk.CTkLabel(f, text="zmin:").grid(row=row, column=0, sticky="e", **pad)
+        ctk.CTkEntry(f, textvariable=self.zmin, width=100).grid(row=row, column=1, **pad)
+        ctk.CTkLabel(f, text="zmax:").grid(row=row, column=2, sticky="e", **pad)
+        ctk.CTkEntry(f, textvariable=self.zmax, width=100).grid(row=row, column=3, **pad)
 
-    # ---------- API pública de la vista ----------
-    def bind_actions(self, on_plot2d, on_plot3d):
-        """El Controller inyecta aquí los callbacks (la vista no contiene lógica de negocio)."""
-        self.btn_plot2d.configure(command=on_plot2d)
-        self.btn_plot3d.configure(command=on_plot3d)
+        # Botones
+        row += 1
+        b1 = ctk.CTkButton(f, text="Contornos 2D",    command=self._on_btn_grid)
+        b2 = ctk.CTkButton(f, text="Isosuperficie 3D", command=self._on_btn_iso)
+        b1.grid(row=row, column=0, columnspan=2, sticky="ew", **pad)
+        b2.grid(row=row, column=2, columnspan=2, sticky="ew", **pad)
+
+        # Área de salida textual
+        row += 1
+        self.output = ctk.CTkTextbox(f, height=140)
+        self.output.grid(row=row, column=0, columnspan=4, sticky="nsew", padx=8, pady=(4, 0))
+
+        for c in range(4):
+            f.grid_columnconfigure(c, weight=1)
+        f.grid_rowconfigure(row, weight=1)
+
+    # ----------------------- Botones -> Controller -----------------------------
+
+    def _on_btn_grid(self):
+        if callable(self.on_compute_grid):
+            self.on_compute_grid()
+
+    def _on_btn_iso(self):
+        if callable(self.on_compute_iso):
+            self.on_compute_iso()
+
+    # ----------------------- API para Controller -------------------------------
 
     def get_form_data(self):
-        """Devuelve los valores de los controles como strings (el Controller hará el casteo)."""
+        """
+        Devuelve un dict de strings con los valores actuales del formulario.
+        El Controller lo pasa al Model sin modificar las claves.
+        """
         return {
             "pattern": self.pattern.get(),
             "section": self.section.get(),
             "type":    self.type.get(),
-            "xmin":    self.xmin.get(), "xmax": self.xmax.get(),
-            "ymin":    self.ymin.get(), "ymax": self.ymax.get(),
-            "zmin":    self.zmin.get(), "zmax": self.zmax.get(),
-            "cutoff":  self.cutoff.get(),
-            "resol":   self.resol.get(),
-            "levels":  self.levels.get(),
+            "xmin": self.xmin.get(), "xmax": self.xmax.get(),
+            "ymin": self.ymin.get(), "ymax": self.ymax.get(),
+            "zmin": self.zmin.get(), "zmax": self.zmax.get(),
+            "cutoff": self.cutoff.get(),
+            "resol":  self.resol.get(),
+            "levels": self.levels.get(),
             "diameter": self.diameter.get(),
             "density":  self.density.get(),
             "K_const":  self.K_const.get(),
             "a_const":  self.a_const.get(),
         }
 
-    def render_contours(self, meta: dict, levels: int):
-        """Dibuja el contour con matplotlib (solo presentación)."""
-        fig, ax = plt.subplots()
-        ax.set_aspect('equal')
-        cont = ax.contourf(meta["x"], meta["y"], meta["values"], levels=levels)
-        ax.set_title(meta["title"])\
-        
-        ax.set_xlabel(meta["xlabel"]) ; ax.set_ylabel(meta["ylabel"])
-        fig.colorbar(cont).ax.set_title('u', loc='left')
-        plt.show(block=False)
+    def show_error(self, msg):
+        """Muestra un mensaje de error en el área de salida."""
+        self.output.delete("1.0", "end")
+        self.output.insert("end", f"[ERROR] {msg}\n")
 
-    def render_error(self, msg: str):
-        """Muestra un mensaje de error (responsabilidad de la vista)."""
-        messagebox.showerror('Análisis de Energía', msg)
+    def show_grid_plot(self, meta):
+        """
+        Dibuja el contorno 2D con matplotlib.
+        meta: dict con x, y, values, xlabel, ylabel, title.
+        """
+        X, Y, Z = meta["x"], meta["y"], meta["values"]
+        plt.figure()
+        cs = plt.contourf(X, Y, Z, levels=20)
+        plt.colorbar(cs, label="u")
+        plt.xlabel(meta["xlabel"]); plt.ylabel(meta["ylabel"])
+        plt.title(meta["title"])
+        plt.axis("equal"); plt.tight_layout()
+        plt.show()
+
+        # Resumen en texto
+        self.output.delete("1.0", "end")
+        self.output.insert("end", f"{meta['title']}\n")
+        self.output.insert("end", f"malla: {X.shape}  valores: {Z.shape}\n")
+        self.output.insert("end", f"ejes: {meta['xlabel']} | {meta['ylabel']}\n")
+
+    def show_iso_info(self, meta):
+        """
+        Muestra un resumen textual para 3D (placeholder).
+        Cuando se implemente el render 3D, se reemplaza aquí.
+        """
+        npts = len(meta["energy"])
+        self.output.delete("1.0", "end")
+        self.output.insert("end", "Isosuperficie 3D: placeholder listo (agregar render 3D).\n")
+        self.output.insert("end", f"puntos: {npts}  cutoff: {meta['cutoff']}\n")
+
+    def set_handlers(self, on_grid, on_iso):
+        """Registra los handlers del Controller para los botones."""
+        self.on_compute_grid = on_grid
+        self.on_compute_iso  = on_iso
