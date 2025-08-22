@@ -1,176 +1,235 @@
-"""
-Vista (UI) de EnergyAnalysis.
-
-Responsabilidad:
-- Definir los controles (StringVar) con los mismos nombres de parámetros.
-- Armar el layout en español (similar al original).
-- Exponer callbacks que el Controller registra.
-- Renderizar el resultado 2D con matplotlib (contourf + colorbar).
-
-No realiza cálculos: solo recoge entradas y muestra salidas.
-"""
-
 import customtkinter as ctk
-import matplotlib.pyplot as plt
+from tkinter import messagebox
 
 
-class View(ctk.CTk):
-    def __init__(self, parent_app=None):
-        super().__init__()
-        self.title("Análisis de Energía (Kleine)")
-        self.geometry("700x480")
+class EnergyAnalysisView(ctk.CTkToplevel):
+    """
+    VIEW pura (CTkToplevel). Solo UI.
+    - Copia literal de create_variables / create_widgets / widgets_layout / set_limits / activate_max
+      de tu EnergyAnalysis original, pero:
+        * SIN valores por defecto (vacío/"")
+        * SIN command=... pegado (el Controller los conecta)
+    - El Controller accede a los StringVar/BooleanVar y a los widgets.
+    """
 
-        # Variables de la vista (nombres preservados)
-        self.pattern = ctk.StringVar(value="PatronDemo")
-        self.section = ctk.StringVar(value="Transversal")
-        self.type    = ctk.StringVar(value="Volumen")
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.title('Análisis de Energía (Kleine)')
+        self.grab_set()
+        # self.after(250, lambda: self.iconbitmap('images/blasting.ico'))  # opcional
+        
+        # Expuestos (el controller les pondrá values):
+        self.charges = {}  # (solo para poblar combo values; el Controller mantiene los datos)
+        self.params = {}   # espejo igual que en la clase original (lo usa Controller)
 
-        self.resol   = ctk.StringVar(value="50")
-        self.xmin = ctk.StringVar(value="0.0"); self.xmax = ctk.StringVar(value="10.0")
-        self.ymin = ctk.StringVar(value="0.0"); self.ymax = ctk.StringVar(value="10.0")
-        self.zmin = ctk.StringVar(value="0.0"); self.zmax = ctk.StringVar(value="10.0")
-        self.cutoff  = ctk.StringVar(value="1.0")
-        self.levels  = ctk.StringVar(value="10")
-        self.diameter= ctk.StringVar(value="0.0")
-        self.density = ctk.StringVar(value="0.0")
-        self.K_const = ctk.StringVar(value="200.0")
-        self.a_const = ctk.StringVar(value="0.9")
+        self.create_variables()
+        self.create_widgets()
+        self.widgets_layout()
 
-        # Callbacks (los registrará el Controller)
-        self.on_compute_grid = None
-        self.on_compute_iso  = None
+    def create_variables(self):
+        '''Crea las variables del menú de análisis (sin valores por defecto).'''
+        # Definición del plano de evaluación:
+        self.pattern = ctk.StringVar(value="")      # patrón seleccionado ("" = PatronDemo vacío)
+        self.section = ctk.StringVar(value="")      # 'Transversal'|'Longitudinal'|'Planta'
+        self.type    = ctk.StringVar(value="")      # 'Volumen'|'Tonelaje'
+        
+        # Extensión del plano de evaluación:
+        self.xmin = ctk.StringVar(value="")
+        self.xmax = ctk.StringVar(value="")
+        self.ymin = ctk.StringVar(value="")
+        self.ymax = ctk.StringVar(value="")
+        self.zmin = ctk.StringVar(value="")
+        self.zmax = ctk.StringVar(value="")
+        
+        # Parámetros de visualización:
+        self.cutoff = ctk.StringVar(value="")
+        self.resol  = ctk.StringVar(value="")
+        self.levels = ctk.StringVar(value="")
+        
+        # Parámetros de evaluación:
+        self.rock_dens = ctk.StringVar(value="")
+        self.expl_dens = ctk.StringVar(value="")
+        self.diameter  = ctk.StringVar(value="")
 
-        self._build_ui()
+        # Parámetros de visualización:
+        self.tridimensional = ctk.BooleanVar(value=False)
 
-    # ----------------------- UI ------------------------------------------------
+    def create_widgets(self):
+        '''Crear los widgets del menú de evaluación (sin commands; los pone el Controller).'''
+        _frame_opts = {'border_width': 1, 'corner_radius': 8}
+        _title_font = ctk.CTkFont(weight='bold')
+        _label_opts = {'width': 90, 'anchor': 'w'}
+        _entry_opts = {'width': 120, 'justify': 'right'}
+        _combo_opts = {'width': 160, 'state': 'readonly'}
+        _units_opts = {'anchor': 'w'}
+        _button_opts = {'width': 50}
 
-    def _build_ui(self):
-        pad = {"padx": 8, "pady": 6}
-        f = ctk.CTkFrame(self)
-        f.pack(fill="both", expand=True, padx=10, pady=10)
+        # NOTA: las listas (values) las setea el Controller
+        self.frame_def = ctk.CTkFrame(self, **_frame_opts)
+        self.title_def = ctk.CTkLabel(self.frame_def, text='Plano de evaluación:', font=_title_font)
 
-        row = 0
-        # Patrón / Sección
-        ctk.CTkLabel(f, text="Patrón:").grid(row=row, column=0, sticky="e", **pad)
-        ctk.CTkEntry(f, textvariable=self.pattern, width=160).grid(row=row, column=1, **pad)
-        ctk.CTkLabel(f, text="Sección:").grid(row=row, column=2, sticky="e", **pad)
-        ctk.CTkOptionMenu(f, values=["Transversal","Longitudinal","Planta"],
-                          variable=self.section, width=140).grid(row=row, column=3, **pad)
+        self.label_charges = ctk.CTkLabel(self.frame_def, text='Patrón de carga', **_label_opts)
+        self.label_section = ctk.CTkLabel(self.frame_def, text='Tipo de sección', **_label_opts)
+        self.label_type    = ctk.CTkLabel(self.frame_def, text='Uds. del factor', **_label_opts)
 
-        # Tipo / Resolución
-        row += 1
-        ctk.CTkLabel(f, text="Tipo:").grid(row=row, column=0, sticky="e", **pad)
-        ctk.CTkOptionMenu(f, values=["Volumen","Tonelaje"],
-                          variable=self.type, width=140).grid(row=row, column=1, **pad)
-        ctk.CTkLabel(f, text="Resolución:").grid(row=row, column=2, sticky="e", **pad)
-        ctk.CTkEntry(f, textvariable=self.resol, width=100).grid(row=row, column=3, **pad)
+        self.combo_charges = ctk.CTkComboBox(self.frame_def, values=[], variable=self.pattern, **_combo_opts)
+        self.combo_section = ctk.CTkComboBox(self.frame_def, values=['Transversal', 'Longitudinal', 'Planta'], variable=self.section, **_combo_opts)
+        self.combo_type    = ctk.CTkComboBox(self.frame_def, values=['Volumen', 'Tonelaje'], variable=self.type, **_combo_opts)
 
-        # xmin/xmax
-        row += 1
-        ctk.CTkLabel(f, text="xmin:").grid(row=row, column=0, sticky="e", **pad)
-        ctk.CTkEntry(f, textvariable=self.xmin, width=100).grid(row=row, column=1, **pad)
-        ctk.CTkLabel(f, text="xmax:").grid(row=row, column=2, sticky="e", **pad)
-        ctk.CTkEntry(f, textvariable=self.xmax, width=100).grid(row=row, column=3, **pad)
+        self.check_3d = ctk.CTkCheckBox(self.frame_def, text='Vista tridimensional', variable=self.tridimensional)
 
-        # ymin/ymax
-        row += 1
-        ctk.CTkLabel(f, text="ymin:").grid(row=row, column=0, sticky="e", **pad)
-        ctk.CTkEntry(f, textvariable=self.ymin, width=100).grid(row=row, column=1, **pad)
-        ctk.CTkLabel(f, text="ymax:").grid(row=row, column=2, sticky="e", **pad)
-        ctk.CTkEntry(f, textvariable=self.ymax, width=100).grid(row=row, column=3, **pad)
+        # Pestañas:
+        self.param_tabs = ctk.CTkTabview(self, height=165, **_frame_opts)
+        tab_exts = self.param_tabs.add('Extensión')
+        tab_view = self.param_tabs.add('Visualización')
+        tab_pars = self.param_tabs.add('Parámetros')
+        
+        # Extensión:
+        self.label_min = ctk.CTkLabel(tab_exts, text='Mínimo')
+        self.label_max = ctk.CTkLabel(tab_exts, text='Máximo')
+        self.label_xcoord = ctk.CTkLabel(tab_exts, text='Coordenada x', **_label_opts)
+        self.label_ycoord = ctk.CTkLabel(tab_exts, text='Coordenada y', **_label_opts)
+        self.label_zcoord = ctk.CTkLabel(tab_exts, text='Coordenada z', **_label_opts)
+        
+        _limits_opts = {'width': 90, 'justify': 'right'}
+        self.entry_xmin = ctk.CTkEntry(tab_exts, textvariable=self.xmin, **_limits_opts)
+        self.entry_xmax = ctk.CTkEntry(tab_exts, textvariable=self.xmax, **_limits_opts)
+        self.entry_ymin = ctk.CTkEntry(tab_exts, textvariable=self.ymin, **_limits_opts)
+        self.entry_ymax = ctk.CTkEntry(tab_exts, textvariable=self.ymax, **_limits_opts)
+        self.entry_zmin = ctk.CTkEntry(tab_exts, textvariable=self.zmin, **_limits_opts)
+        self.entry_zmax = ctk.CTkEntry(tab_exts, textvariable=self.zmax, **_limits_opts)
 
-        # zmin/zmax
-        row += 1
-        ctk.CTkLabel(f, text="zmin:").grid(row=row, column=0, sticky="e", **pad)
-        ctk.CTkEntry(f, textvariable=self.zmin, width=100).grid(row=row, column=1, **pad)
-        ctk.CTkLabel(f, text="zmax:").grid(row=row, column=2, sticky="e", **pad)
-        ctk.CTkEntry(f, textvariable=self.zmax, width=100).grid(row=row, column=3, **pad)
+        # Visualización:
+        self.label_cutoff = ctk.CTkLabel(tab_view, text='Energía máx.'  , **_label_opts)
+        self.label_resol  = ctk.CTkLabel(tab_view, text='Resolución'    , **_label_opts)
+        self.label_levels = ctk.CTkLabel(tab_view, text='No. de niveles', **_label_opts)
+        
+        self.entry_cutoff = ctk.CTkEntry(tab_view, textvariable=self.cutoff, **_entry_opts)
+        self.entry_resol  = ctk.CTkEntry(tab_view, textvariable=self.resol , **_entry_opts)
+        self.entry_levels = ctk.CTkEntry(tab_view, textvariable=self.levels, **_entry_opts)
+        
+        self.units_cutoff = ctk.CTkLabel(tab_view, text='kg/m³', **_units_opts)
+        self.units_resol  = ctk.CTkLabel(tab_view, text='pts/eje', **_units_opts)
+        
+        # Parámetros:
+        self.label_rock_dens = ctk.CTkLabel(tab_pars , text='Dens. roca'     , **_label_opts)
+        self.label_expl_dens = ctk.CTkLabel(tab_pars , text='Dens. explosivo', **_label_opts)
+        self.label_chrg_diam = ctk.CTkLabel(tab_pars , text='Diámetro carga' , **_label_opts)
 
+        self.entry_rock_dens = ctk.CTkEntry(tab_pars, textvariable=self.rock_dens, **_entry_opts)
+        self.entry_expl_dens = ctk.CTkEntry(tab_pars, textvariable=self.expl_dens, **_entry_opts)
+        self.entry_chrg_diam = ctk.CTkEntry(tab_pars, textvariable=self.diameter , **_entry_opts)
+        
+        self.units_rock_dens = ctk.CTkLabel(tab_pars, text='g/cm³', **_units_opts)
+        self.units_expl_dens = ctk.CTkLabel(tab_pars, text='g/cm³', **_units_opts)
+        self.units_chrg_diam = ctk.CTkLabel(tab_pars, text='mm'   , **_units_opts)
+
+        # Botones:
+        self.frame_buttons = ctk.CTkFrame(self, fg_color='transparent')
+        self.button_plot = ctk.CTkButton(self.frame_buttons, text='Graficar')
+        self.button_save = ctk.CTkButton(self.frame_buttons, text='Guardar')
+
+        # traces que usa tu set_limits:
+        self.xmin.trace_add('write', self.set_limits)
+        self.ymin.trace_add('write', self.set_limits)
+        self.zmin.trace_add('write', self.set_limits)
+
+    def widgets_layout(self):
+        '''Colocar los widgets en el menú de evaluación'''
+        _frame_pack = {'fill': 'x', 'padx': 5, 'pady': 3, 'ipadx': 5, 'ipady': 5}
+        _title_grid = {'row': 0, 'column': 0, 'columnspan': 2, 'padx': 10, 'pady': 3, 'sticky': 'w'}
+        _label_grid = {'column': 0, 'sticky': 'w', 'padx': 10}
+        _entry_grid = {'column': 1, 'sticky': 'w'}
+        _units_grid = {'column': 3, 'sticky': 'w', 'padx': (5,0)}
+        _button_pack = {'side': 'left', 'padx': 5, 'pady': 10}
+
+        self.frame_def.pack(**_frame_pack)
+        self.title_def.grid(**_title_grid)
+        
+        self.label_charges.grid(row=1, **_label_grid)
+        self.label_section.grid(row=2, **_label_grid)
+        self.label_type   .grid(row=3, **_label_grid)
+
+        self.combo_charges.grid(row=1, **_entry_grid)
+        self.combo_section.grid(row=2, **_entry_grid)
+        self.combo_type   .grid(row=3, **_entry_grid)
+        
+        self.check_3d.grid(row=4, column=0, columnspan=3, sticky='w', padx=10)
+        
+        # Tabs
+        _frame_pack = {'fill': 'x', 'padx': 5, 'pady': 0}
+        _label_grid = {'column': 0, 'sticky': 'w', 'padx': (2,10)}
+        self.param_tabs.pack(**_frame_pack)
+        
+        # Extensión
+        self.label_min.grid(row=0, column=1)
+        self.label_max.grid(row=0, column=2)
+        self.label_xcoord.grid(row=1, **_label_grid)
+        self.label_ycoord.grid(row=2, **_label_grid)
+        self.label_zcoord.grid(row=3, **_label_grid)
+        
+        self.entry_xmin.grid(row=1, column=1)
+        self.entry_xmax.grid(row=1, column=2)
+        self.entry_ymin.grid(row=2, column=1)
+        self.entry_ymax.grid(row=2, column=2)
+        self.entry_zmin.grid(row=3, column=1)
+        self.entry_zmax.grid(row=3, column=2)
+        
+        # Visualización
+        self.label_cutoff.grid(row=0, **_label_grid)
+        self.label_resol .grid(row=1, **_label_grid)
+        self.label_levels.grid(row=2, **_label_grid)
+        
+        self.entry_cutoff.grid(row=0, **_entry_grid)
+        self.entry_resol .grid(row=1, **_entry_grid)
+        self.entry_levels.grid(row=2, **_entry_grid)
+
+        self.units_cutoff.grid(row=0, **_units_grid)
+        self.units_resol .grid(row=1, **_units_grid)
+        
+        # Parámetros
+        self.label_rock_dens.grid(row=1, **_label_grid)
+        self.label_expl_dens.grid(row=3, **_label_grid)
+        self.label_chrg_diam.grid(row=4, **_label_grid)
+        
+        self.entry_rock_dens.grid(row=1, **_entry_grid)
+        self.entry_expl_dens.grid(row=3, **_entry_grid)
+        self.entry_chrg_diam.grid(row=4, **_entry_grid)
+
+        self.units_rock_dens.grid(row=1, **_units_grid)
+        self.units_expl_dens.grid(row=3, **_units_grid)
+        self.units_chrg_diam.grid(row=4, **_units_grid)
+        
         # Botones
-        row += 1
-        b1 = ctk.CTkButton(f, text="Contornos 2D",    command=self._on_btn_grid)
-        b2 = ctk.CTkButton(f, text="Isosuperficie 3D", command=self._on_btn_iso)
-        b1.grid(row=row, column=0, columnspan=2, sticky="ew", **pad)
-        b2.grid(row=row, column=2, columnspan=2, sticky="ew", **pad)
+        self.frame_buttons.pack()
+        self.button_plot.pack(**_button_pack)
+        self.button_save.pack(**_button_pack)
 
-        # Área de salida textual
-        row += 1
-        self.output = ctk.CTkTextbox(f, height=140)
-        self.output.grid(row=row, column=0, columnspan=4, sticky="nsew", padx=8, pady=(4, 0))
+    # -------- métodos “de view” copiados --------
+    def set_limits(self, *args):
+        '''Actualiza la entrada para la coordenada fija (igual que tu View original).'''
+        if self.tridimensional.get():
+            return
 
-        for c in range(4):
-            f.grid_columnconfigure(c, weight=1)
-        f.grid_rowconfigure(row, weight=1)
+        if self.section.get() == 'Transversal':
+            zmin = self.zmin.get()
+            self.zmax.set(zmin)
+        elif self.section.get() == 'Longitudinal':
+            xmin = self.xmin.get()
+            self.xmax.set(xmin)
+        else:
+            ymin = self.ymin.get()
+            self.ymax.set(ymin)
 
-    # ----------------------- Botones -> Controller -----------------------------
+    def activate_max(self):
+        '''Activa las entradas tridimensionales (igual que tu View original).'''
+        self.entry_xmax.configure(state='normal')
+        self.entry_ymax.configure(state='normal')
+        self.entry_zmax.configure(state='normal')
 
-    def _on_btn_grid(self):
-        if callable(self.on_compute_grid):
-            self.on_compute_grid()
+    # Helpers para mensajes (para que el Controller no importe messagebox)
+    def info(self, title, msg):
+        messagebox.showinfo(title, msg)
 
-    def _on_btn_iso(self):
-        if callable(self.on_compute_iso):
-            self.on_compute_iso()
-
-    # ----------------------- API para Controller -------------------------------
-
-    def get_form_data(self):
-        """
-        Devuelve un dict de strings con los valores actuales del formulario.
-        El Controller lo pasa al Model sin modificar las claves.
-        """
-        return {
-            "pattern": self.pattern.get(),
-            "section": self.section.get(),
-            "type":    self.type.get(),
-            "xmin": self.xmin.get(), "xmax": self.xmax.get(),
-            "ymin": self.ymin.get(), "ymax": self.ymax.get(),
-            "zmin": self.zmin.get(), "zmax": self.zmax.get(),
-            "cutoff": self.cutoff.get(),
-            "resol":  self.resol.get(),
-            "levels": self.levels.get(),
-            "diameter": self.diameter.get(),
-            "density":  self.density.get(),
-            "K_const":  self.K_const.get(),
-            "a_const":  self.a_const.get(),
-        }
-
-    def show_error(self, msg):
-        """Muestra un mensaje de error en el área de salida."""
-        self.output.delete("1.0", "end")
-        self.output.insert("end", f"[ERROR] {msg}\n")
-
-    def show_grid_plot(self, meta):
-        """
-        Dibuja el contorno 2D con matplotlib.
-        meta: dict con x, y, values, xlabel, ylabel, title.
-        """
-        X, Y, Z = meta["x"], meta["y"], meta["values"]
-        plt.figure()
-        cs = plt.contourf(X, Y, Z, levels=20)
-        plt.colorbar(cs, label="u")
-        plt.xlabel(meta["xlabel"]); plt.ylabel(meta["ylabel"])
-        plt.title(meta["title"])
-        plt.axis("equal"); plt.tight_layout()
-        plt.show()
-
-        # Resumen en texto
-        self.output.delete("1.0", "end")
-        self.output.insert("end", f"{meta['title']}\n")
-        self.output.insert("end", f"malla: {X.shape}  valores: {Z.shape}\n")
-        self.output.insert("end", f"ejes: {meta['xlabel']} | {meta['ylabel']}\n")
-
-    def show_iso_info(self, meta):
-        """
-        Muestra un resumen textual para 3D (placeholder).
-        Cuando se implemente el render 3D, se reemplaza aquí.
-        """
-        npts = len(meta["energy"])
-        self.output.delete("1.0", "end")
-        self.output.insert("end", "Isosuperficie 3D: placeholder listo (agregar render 3D).\n")
-        self.output.insert("end", f"puntos: {npts}  cutoff: {meta['cutoff']}\n")
-
-    def set_handlers(self, on_grid, on_iso):
-        """Registra los handlers del Controller para los botones."""
-        self.on_compute_grid = on_grid
-        self.on_compute_iso  = on_iso
+    def error(self, title, msg):
+        messagebox.showerror(title, msg)
