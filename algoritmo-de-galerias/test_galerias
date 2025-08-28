@@ -1,0 +1,32 @@
+# test_drift.py
+import matplotlib.pyplot as plt
+from drift import rectangle, rounded, horseshoe, trapezoidal, d_shaped
+
+def plot_vertices(vertices, title="Galería"):
+    xs, ys = zip(*vertices)
+    xs += (xs[0],)  # cerrar el polígono
+    ys += (ys[0],)
+    plt.figure()
+    plt.plot(xs, ys, marker='o')
+    plt.fill(xs, ys, alpha=0.3)  # relleno opcional
+    plt.title(title)
+    plt.axis('equal')
+    plt.show()
+
+def test_geometries():
+    geometries = {
+        "Rectangular": rectangle(4, 3),
+        "Rounded": rounded(4, 3, 0.5),
+        "Horseshoe": horseshoe(4, 3, 1),
+        "Trapezoidal": trapezoidal(4, 2, 3),
+        "D-shaped": d_shaped(4, 3, 1.5)
+    }
+
+    for name, vertices in geometries.items():
+        print(f"{name} vertices:")
+        for v in vertices:
+            print(f"  {v}")
+        plot_vertices(vertices, title=name)
+
+if __name__ == "__main__":
+    test_geometries()
