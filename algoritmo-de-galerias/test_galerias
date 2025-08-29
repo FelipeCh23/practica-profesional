@@ -1,32 +1,57 @@
-# test_drift.py
 import matplotlib.pyplot as plt
-from drift import rectangle, rounded, horseshoe, trapezoidal, d_shaped
+from matplotlib.widgets import Button
+from drift import rectangular, circular, trapezoidal, horseshoe, d_shaped, bezier, rounded_rectangle
 
-def plot_vertices(vertices, title="Galería"):
-    xs, ys = zip(*vertices)
-    xs += (xs[0],)  # cerrar el polígono
-    ys += (ys[0],)
-    plt.figure()
-    plt.plot(xs, ys, marker='o')
-    plt.fill(xs, ys, alpha=0.3)  # relleno opcional
-    plt.title(title)
-    plt.axis('equal')
-    plt.show()
 
-def test_geometries():
-    geometries = {
-        "Rectangular": rectangle(4, 3),
-        "Rounded": rounded(4, 3, 0.5),
-        "Horseshoe": horseshoe(4, 3, 1),
-        "Trapezoidal": trapezoidal(4, 2, 3),
-        "D-shaped": d_shaped(4, 3, 1.5)
-    }
+# Lista de figuras y nombres
+shapes = [
+    ("Rectángulo", rectangular(5,3)),
+    ("Círculo", circular(2, n_points=200)),
+    ("Trapecio", trapezoidal(3,5,4)),
+    ("Horseshoe", horseshoe(4,3, radius=2, n_points=50)),
+    ("D-shape", d_shaped(4,3, n_points=50)),
+    ("Bézier", bezier((0,0),(2,4),(4,0), n_points=50)),
+    ("Rounded Rect", rounded_rectangle(5,3, radius=0.5, n_corner_points=20))
+]
 
-    for name, vertices in geometries.items():
-        print(f"{name} vertices:")
-        for v in vertices:
-            print(f"  {v}")
-        plot_vertices(vertices, title=name)
+index = 0  # Figura actual
 
-if __name__ == "__main__":
-    test_geometries()
+fig, ax = plt.subplots()
+plt.subplots_adjust(bottom=0.2)  # espacio para botones
+
+def plot_current():
+    ax.clear()
+    title, verts = shapes[index]
+    x, y = zip(*verts)
+    x += (x[0],)
+    y += (y[0],)
+    ax.plot(x, y, '-o')
+    ax.set_title(title)
+    ax.axis("equal")
+    ax.grid(True)
+    plt.draw()
+
+def next_shape(event):
+    global index
+    index = (index + 1) % len(shapes)
+    plot_current()
+
+def prev_shape(event):
+    global index
+    index = (index - 1) % len(shapes)
+    plot_current()
+    
+
+
+# Botones
+axprev = plt.axes([0.3, 0.05, 0.1, 0.075])
+axnext = plt.axes([0.6, 0.05, 0.1, 0.075])
+bnext = Button(axnext, 'Next')
+bnext.on_clicked(next_shape)
+bprev = Button(axprev, 'Previous')
+bprev.on_clicked(prev_shape)
+
+plot_current()
+plt.show()
+
+
