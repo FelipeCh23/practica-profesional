@@ -1,23 +1,24 @@
 """
-Módulo: drift.py
-Autor: Felipe Chávez
-Descripción:
-    Contiene funciones para generar la geometría de diferentes tipos de galerías subterráneas.
-    Cada función recibe parámetros como ancho, alto o radio, y devuelve una lista de vértices (x, y)
-    que definen la sección transversal de la galería.
+Drift_geometry: 
+
+Funciones para generar la geometría de galerías subterráneas (drifts).
+Cada función recibe parámetros como ancho, alto o radio, y devuelve
+una lista de vértices (x, y) centrados en el centroide (0,0).
+
+Incluye:
+    rectangular, trapezoidal, circular, horseshoe, d_shaped,
+    rounded_rectangle, bezier
 
 Uso:
-    from drift import rectangular, circular, horseshoe, trapezoidal, d_shaped, bezier
-
+    from drift import rectangular, circular, horseshoe
     vertices = rectangular(5, 3)
 """
 
 import math
-import math
 
-# ------------------------------
+
 # Funciones de utilidad
-# ------------------------------
+
 def polygon_centroid(vertices):
     """Calcula el centroide (Cx, Cy) de un polígono"""
     x_list, y_list = zip(*vertices)
@@ -45,9 +46,8 @@ def center_polygon(vertices):
     return [(x - Cx, y - Cy) for x, y in vertices]
 
 
-# -------------------------------------------------
 # 1. Rectangular
-# -------------------------------------------------
+
 def rectangular(width, height):
     vertices = [
         (0, 0),
@@ -58,9 +58,9 @@ def rectangular(width, height):
     return center_polygon(vertices)
 
 
-# -------------------------------------------------
+
 # 2. Circular
-# -------------------------------------------------
+
 def circular(radius, n_points=60):
     vertices = []
     for i in range(n_points):
@@ -71,9 +71,8 @@ def circular(radius, n_points=60):
     return center_polygon(vertices)
 
 
-# -------------------------------------------------
 # 3. Trapezoidal
-# -------------------------------------------------
+
 def trapezoidal(top_width, bottom_width, height):
     offset = (bottom_width - top_width) / 2
     vertices = [
@@ -85,9 +84,9 @@ def trapezoidal(top_width, bottom_width, height):
     return center_polygon(vertices)
 
 
-# -------------------------------------------------
+
 # 4. Horseshoe (Herradura)
-# -------------------------------------------------
+
 def horseshoe(width, height, radius=None, n_points=50):
     if radius is None:
         radius = width / 2
@@ -109,9 +108,9 @@ def horseshoe(width, height, radius=None, n_points=50):
     return center_polygon(vertices)
 
 
-# -------------------------------------------------
+
 # 5. D-Shaped (Semicircular sobre base plana)
-# -------------------------------------------------
+
 def d_shaped(width, height, n_points=30):
     radius = width / 2
     wall_height = height - radius
@@ -131,9 +130,9 @@ def d_shaped(width, height, n_points=30):
     return center_polygon(vertices)
 
 
-# -------------------------------------------------
+
 # 6. Bézier (para secciones personalizadas)
-# -------------------------------------------------
+
 def bezier(p0, p1, p2, n_points=20):
     vertices = []
     for t in [i/n_points for i in range(n_points+1)]:
@@ -178,7 +177,7 @@ def rounded_rectangle(width, height, radius=0.5, n_corner_points=10):
         [3*math.pi/2, 2*math.pi]  # inf der
     ]
 
-    # Construir las esquinas con arcos
+    """Construir las esquinas con arcos"""
     for i, ((cx, cy), (angle_start, angle_end)) in enumerate(zip(corners, corner_angles)):
         for j in range(n_corner_points):
             t = j / (n_corner_points - 1)
