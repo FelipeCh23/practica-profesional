@@ -11,7 +11,7 @@ current_geometry = "Rectangular"
 params = {
     "Rectangular": {"width": 4, "height": 3},
     "Semicircular": {"radius": 2, "n_points": 30},
-    "D-Shaped": {"width": 4, "height": 3, "n_points": 30},
+    "D-Shaped": {"width": 10, "height": 10, "n_points": 30},
     "Horseshoe": {"width": 4, "height": 3, "n_curve": 10},
     "Bezier": {"width": 6, "wall_height": 2, "curve_height": 3, "n_points": 30}
 }
