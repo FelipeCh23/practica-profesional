@@ -1,5 +1,6 @@
+
 # blast_cuts.py
-# Generadores geométricos de CUeLEs para frentes de galería (2D en la cara).
+# Generadores geométricos de CUELEs para frentes de galería (2D).
 # Salida: lista de "holes" con posición (x,y) relativa al centro del frente,
 # familia="cuele" y número de retardo (delay) según el esquema del plano.
 
@@ -8,12 +9,12 @@ from math import cos, sin, radians
 def _pt(x, y, delay, note=""):
     return {"x": x, "y": y, "family": "cuele", "delay": delay, "note": note}
 
-# -----------------------------
+
 # CUELE SARRIOS (3x3)
-# -----------------------------
-def cuele_sarrios(center=(0.0, 0.0), d_core=0.15, vacio_central=True):
+
+def cuele_sarrois(center=(0.0, 0.0), d_core=0.15, vacio_central=True):
     """
-    Sarrios clásico: 9 posiciones en retícula 3x3 con paso d_core,
+    Sarrois clásico: 9 posiciones en retícula 3x3 con paso d_core,
     paralelos al frente. El central suele ir SIN carga (alivio).
     Retardos en 3 series (2 -> 1 -> 0) del exterior al interior.
     d_core típico (pág. 42): 0.20 flojo, 0.15 medio, 0.10 duro (m).
@@ -41,7 +42,7 @@ def cuele_sarrios(center=(0.0, 0.0), d_core=0.15, vacio_central=True):
 
 
 # CUELE SUECO
-# -----------------------------
+
 def cuele_sueco(center=(0.0, 0.0), d_core=0.15, roca_dura=False):
     """
     Variante sueca: para roca media/blanda (menos taladros) o dura (más compacta).
@@ -63,9 +64,9 @@ def cuele_sueco(center=(0.0, 0.0), d_core=0.15, roca_dura=False):
             holes.append(_pt(cx + ox, cy + oy, delay=2, note="sueco refuerzo"))
     return holes
 
-# -----------------------------
+
 # CUELE COROMANT (alivio en '8')
-# -----------------------------
+
 def cuele_coromant(center=(0.0, 0.0), d_core=0.18):
     """
     Coromant: par central 'en ocho' (sin carga) como gran alivio + 6 tiros alrededor.
@@ -85,9 +86,9 @@ def cuele_coromant(center=(0.0, 0.0), d_core=0.18):
         holes.append(_pt(cx + ox, cy + oy, delay=2, note="coromant corte"))
     return holes
 
-# -----------------------------
+
 # CUELE CUÑA (V-cut)
-# -----------------------------
+
 def cuele_cuna(center=(0.0, 0.0), d_core=0.20, n_pairs=3, ang_deg=70):
     """
     Cuña: dos filas convergentes que forman una 'V' con vértice en el centro.
@@ -110,9 +111,9 @@ def cuele_cuna(center=(0.0, 0.0), d_core=0.20, n_pairs=3, ang_deg=70):
     holes.append(_pt(cx, cy, delay=0, note="cuna vértice"))
     return holes
 
-# -----------------------------
+
 # CUELE ABANICO (Fan)
-# -----------------------------
+
 def cuele_abanico(center=(0.0, 0.0), radio=0.5, n=10, ang_start=25, ang_end=10):
     """
     Abanico: n collares distribuidos en arco; cada uno apunta con
@@ -131,9 +132,9 @@ def cuele_abanico(center=(0.0, 0.0), radio=0.5, n=10, ang_start=25, ang_end=10):
         holes.append(_pt(x, y, delay=i//3, note="abanico"))
     return holes
 
-# -----------------------------
+
 # CUELE BETHUNE
-# -----------------------------
+
 def cuele_bethune(center=(0.0, 0.0), d_core=0.20, n_rows=3):
     """
     Bethune: grupos en abanico con distintas longitudes (en croquis 0.8–2.2 m y ángulos 24–34°).
@@ -150,9 +151,8 @@ def cuele_bethune(center=(0.0, 0.0), d_core=0.20, n_rows=3):
             holes.append(_pt(x, y, delay=delay, note="bethune"))
     return holes
 
-# -----------------------------
 # Helper: desplazar/rotar un cuele (opcional)
-# -----------------------------
+
 def transform(holes, dx=0.0, dy=0.0):
     """Aplica un desplazamiento plano a todos los collares."""
     out = []
@@ -162,3 +162,4 @@ def transform(holes, dx=0.0, dy=0.0):
         h2["y"] += dy
         out.append(h2)
     return out
+
