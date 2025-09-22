@@ -2,9 +2,9 @@ import matplotlib.pyplot as plt
 from matplotlib.widgets import RadioButtons
 from drift_geometry import rectangular, semicircular, d_shaped, horseshoe, bezier_tunnel
 
-# -------------------------
+
 # Parámetros iniciales
-# -------------------------
+
 centro = None
 current_geometry = "Rectangular"
 
@@ -16,9 +16,9 @@ params = {
     "Bezier": {"width": 6, "wall_height": 2, "curve_height": 3, "n_points": 30}
 }
 
-# -------------------------
+
 # Configurar figura y menú
-# -------------------------
+
 fig, ax = plt.subplots(figsize=(7,7))
 plt.subplots_adjust(left=0.25)
 ax.set_xlim(-10, 10)

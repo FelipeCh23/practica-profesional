@@ -1,0 +1,50 @@
+# 🛠️ Tareas del Proyecto
+
+## 🚧 Depuración
+- [ ]  (Drilling Design) Solucionar error de visualización de la grilla
+- [ ] 🎛️ (Drilling Design) Evitar restablecer la configuración de las entradas (combo)
+- [ ] 🛠️ (Drilling Design) Corregir colocación de perforaciones del techo
+- [ ]  (Drilling Design) Semicircular ≠ D-Shaped (mapeo/geom)
+- [ ]  (Drilling Design) Evitar apilar galerías en el mismo punto
+- [ ]  (Drilling Design) Escalado/viewport: diseños fuera del canvas
+- [ ]  (Drilling Design) Saturación de puntos en “corona y cajas” (vértices curvos)
+
+## 🎨 Interfaz Gráfica
+- [ ] 💻 Rediseñar la pantalla de inicio.
+- [ ] 🧭 (Drilling Design) Agregar una grilla al lienzo de dibujo (spacing configurable)
+- [ ] 🗂️ (Drilling Design) Barra superior por pasos (tabs/botones): Eje → Galería → Cuele → Contracuele → Corona → Cajas
+- [ ] ✚ (Drilling Design) Herramienta “Eje de trabajo” (cruz): colocar/mover/rotar, snap opcional
+- [ ] 🧲 (Drilling Design) Snap a grilla + pan/zoom con Space+drag
+- [ ] 🔁 (Drilling Design) Persistir selección del ComboBox y el modo actual
+- [ ] 📝 Cambiar "sries" por "serie de retardos"
+- [ ] 🎯 Colores de perforaciones: cargadas (amarillo), huecas (configurable) + leyenda
+- [ ] 🎨 (opcional) Usar un solo color para perforaciones cargadas y vacías
+
+## 🔢 Lógica
+- [ ] 🧮 Refactorizar la función de cálculo de impuestos.
+- [ ] 🔄 Implementar la validación de datos del formulario.
+- [ ] 🧩 Dividir la lógica de autenticación en dos funciones separadas.
+- [ ] 🔧 (Drilling Design) Cambiar el orden de generación del diseño según el flujo por pasos
+- [ ] 🧠 (Drilling Design) Separar MVC / máquina de estados (IDLE, PLACE_AXIS, PLACE_GALLERY, …)
+- [ ] ✂️ (Drilling Design) Simplificar contornos antes de generar puntos (tolerancia)
+
+## 📦 Backend
+
+
+## Refactorización
+- [ ] 🧹 Revisar normas PEP8
+
+## 📑 Documentación.
+- [x] ✅ Corregir errores tipográficos en la documentación del proyecto.
+- [ ] 📄 Añadir un PDF que explique el uso del software.
+- [ ] 🧭 Agregar documentación para la función …
+
+## ✅ Testing
+
+## ✅ Testing 
+- [ ] INT-01: D-Shaped ≠ Semicircular → se dibujan distinto.
+- [ ] INT-02: No apilar → segundo click en la misma celda no crea otra galería.
+- [ ] INT-03: ComboBox persiste → tras dibujar mantiene la selección.
+- [ ] INT-04: Escala/viewport → la galería nueva queda visible y centrable.
+- [ ] INT-05: Grilla correcta → ya no “dividido en 4”, spacing ok.
+- [ ] INT-06: Corona/Cajas → sin racimos en curvas; ≤ N puntos por arco.
