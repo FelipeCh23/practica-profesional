@@ -19,7 +19,7 @@ from math import cos, sin, pi
 
 # ======================================================================
 # UTILIDADES BÁSICAS
-# ======================================================================
+#
 
 def _pt(x, y, note="", is_void=False):
     """
@@ -86,9 +86,9 @@ def _poly_length(poly):
     return L
 
 
-# ======================================================================
+
 # DETECCIÓN DE SEGMENTOS CON BASE/TECHO/LADOS
-# ======================================================================
+
 
 def _segments_mask_by_coord(poly, which="base", eps=0.02):
     """
@@ -143,9 +143,9 @@ def _sample_on_segment_equidistant(a, b, n):
     return [_interp(a,b,(i+1)/(n+1)) for i in range(n)]
 
 
-# ======================================================================
+
 # REPARTO EQUITATIVO SOBRE UN CONJUNTO DE SEGMENTOS
-# ======================================================================
+
 
 def _distribute_over_segments(poly, idxs, n):
     """
@@ -185,9 +185,9 @@ def _distribute_over_segments(poly, idxs, n):
     return pts
 
 
-# ======================================================================
+
 # ARCO SUPERIOR ENTRE CABEZAS DE PARED
-# ======================================================================
+
 
 def _interpolate_cross(p1, p2, y_cut):
     """
@@ -333,9 +333,9 @@ def _wall_top_y(poly):
     return ymax - 0.02*(ymax - ymin)
 
 
-# ======================================================================
+
 # COLOCADORES EN CONTORNO
-# ======================================================================
+
 
 def place_zapateras(tunnel_poly, n, note="zapatera"):
     """
@@ -354,26 +354,46 @@ def place_zapateras(tunnel_poly, n, note="zapatera"):
     return [_pt(x,y, note=note) for (x,y) in pts]
 
 
-def place_cajas(tunnel_poly, n_per_side, note="caja"):
+def place_cajas(tunnel_poly, n_per_side, wall_top_y=None, wall_x_left=None, wall_x_right=None,
+                top_clear_m=0.05, bottom_clear_m=0.05, note="caja"):
     """
-    Coloca perforaciones en ambos LADOS (izq y der), sin tocar vértices.
+    Coloca N 'cajas' por lado EXCLUSIVAMENTE sobre las paredes (si existen).
+    Si no hay paredes (p.ej. Semicircular), retorna [].
 
     Parámetros:
-        tunnel_poly (list[tuple]): contorno de la galería
-        n_per_side (int): cantidad por lado (misma para izq y der)
-        note (str): etiqueta
-
-    Retorna:
-        list[dict]: perforaciones en paredes
+      - wall_top_y: y donde termina pared (empieza el techo)
+      - wall_x_left/right: x constantes de las paredes (verticales)
+      - top_clear_m / bottom_clear_m: despejes para no tocar vértices/base
     """
-    pts=[]
-    for side in ("lado_izq","lado_der"):
-        idxs = _segments_mask_by_coord(tunnel_poly, side)
-        for i in idxs:
-            a = tunnel_poly[i]
-            b = tunnel_poly[i+1]
-            pts += _sample_on_segment_equidistant(a, b, n_per_side)
-    return [_pt(x,y, note=note) for (x,y) in pts]
+    if wall_top_y is None or wall_x_left is None or wall_x_right is None:
+        return []  # no hay paredes
+
+    ys = [p[1] for p in tunnel_poly] if tunnel_poly else []
+    if not ys:
+        return []
+    ymin = min(ys)
+    H_wall = max(0.0, wall_top_y - ymin)
+    if H_wall <= (top_clear_m + bottom_clear_m):
+        return []
+
+    y0 = ymin + bottom_clear_m
+    y1 = wall_top_y - top_clear_m
+    if y1 <= y0:
+        return []
+
+    if n_per_side <= 0:
+        return []
+    if n_per_side == 1:
+        y_levels = [(y0 + y1) * 0.5]
+    else:
+        step = (y1 - y0) / (n_per_side - 1)
+        y_levels = [y0 + i * step for i in range(n_per_side)]
+
+    holes = []
+    for y in y_levels:
+        holes.append({"x": wall_x_left,  "y": y, "note": note})
+        holes.append({"x": wall_x_right, "y": y, "note": note})
+    return holes
 
 
 def place_corona(tunnel_poly, n, note="corona"):
