@@ -3,15 +3,16 @@
 ## 🚧 Depuración
 - [x] 🟩 (Drilling Design) Solucionar error de visualización de la grilla
 - [x] 🎛️ (Drilling Design) Evitar restablecer la selección del combobox de geometría tras insertar una galería
-- [ ] 🧱 (Drilling Design) Corregir colocación de perforaciones de **cajas** cerca del encuentro pared/techo (evitar amontonamiento)
-- [ ] 🛠️ (Drilling Design) Corregir colocación de perforaciones de **corona** cuando el arco es muy curvo
+- [x] 🧱 (Drilling Design) Corregir colocación de perforaciones de **cajas** cerca del encuentro pared/techo (evitar amontonamiento)
+- [x] 🛠️ (Drilling Design) Corregir colocación de perforaciones de **corona** cuando el arco es muy curvo
 - [ ] 🧪 (Layout) Usar `wall_top_y` y `wall_x_left/right` para delimitar claramente paredes vs. techo en `place_cajas`
 
 ## 🎨 Interfaz Gráfica
 - [x] 🧭 Agregar una **grilla** al lienzo (tamaño en m, líneas mayores, ejes)
-- [ ] 🖱️ Habilitar **paneo** del lienzo (arrastrar con botón central/Shift+drag)
+- [x] 🖱️ Habilitar **paneo** del lienzo (arrastrar con botón central/Shift+drag)
 - [ ] 🔍 Agregar **zoom** (Ctrl+rueda o botones +/−)
 - [ ] 🎨 Unificar color minería para perforaciones cargadas y vacías + selector de color
+- [ ]    Agregar ventanas de pasos en la parte de arriba de la interfaz.
 
 ## 🧩 Geometría & Edición
 - [x] 🧲 Bloquear la **inserción de nuevas galerías** por error (toggle `lock_geom_insert`)
@@ -23,7 +24,7 @@
 
 ## 🔄 Flujo de trabajo
 - [ ] 🧭 Reordenar pasos: **eje** → **diseño de galería** → **cuele** → **contracuele** → **zapateras/cajas/corona** → **auxiliares**
-- [ ] 🟨 Mantener **estado del combobox** en el paso de Geometría (no resetear a “Semicircular”)
+- [x] 🟨 Mantener **estado del combobox** en el paso de Geometría (no resetear a “Semicircular”)
 
 ## 📤 Exportación / Compatibilidad
 - [ ] 📦 `export_json()`: exportar `{"holes": ..., "drifts": ...}` (reemplazar `tunnels`)
