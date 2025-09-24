@@ -321,7 +321,6 @@ class App(tk.Tk):
         return holes
 
     def _build_ui(self):
-        """Construye los widgets estáticos de la interfaz."""
         # canvas
         self.canvas = tk.Canvas(self, width=CANVAS_W, height=CANVAS_H, bg="white")
         self.canvas.grid(row=0, column=0, padx=6, pady=6, sticky="nsew")
