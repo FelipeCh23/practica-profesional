@@ -21,13 +21,18 @@
 - [ ] 🧵 Suavizado del arco al mover puntos (re-muestreo/reparametrización para “curva tipo cuerda”)
 - [ ] 🧷 Hit-test para **ignorar clics encima** de la galería cuando `lock_geom_insert` está activado (sin mostrar error)
 - [ ] 🧰 Bezier: habilitar edición con manillas p0..p3 (similar a C/R)
+- [ ] Suavizado del arco al mover puntos (re-muestreo).
+- [ ]  Bezier editable con manillas p0–p3.
 
+## Código / Organización
+- [ ]✨ PEP 8 (docstrings, líneas ≤79, verbos en imperativo).
+- [ ] Extraer utilidades UI a ui_helpers.py (p. ej., _vbind, helpers de tabs) y mantener drilling_design.py más limpio.
 ## 🔄 Flujo de trabajo
-- [ ] 🧭 Reordenar pasos: **eje** → **diseño de galería** → **cuele** → **contracuele** → **zapateras/cajas/corona** → **auxiliares**
+- [x] 🧭 Reordenar pasos: **eje** → **diseño de galería** → **cuele** → **contracuele** → **zapateras/cajas/corona** → **auxiliares**
 - [x] 🟨 Mantener **estado del combobox** en el paso de Geometría (no resetear a “Semicircular”)
 
 ## 📤 Exportación / Compatibilidad
-- [ ] 📦 `export_json()`: exportar `{"holes": ..., "drifts": ...}` (reemplazar `tunnels`)
+- [x] 📦 `export_json()`: exportar `{"holes": ..., "drifts": ...}` (reemplazar `tunnels`)
 - [ ] 🧼 `clear_all()`: limpiar `drift_poly` y `scene.drifts` (eliminar referencias a `tunnel_poly/tunnels`)
 - [ ] 🔁 Añadir importación simple desde `layout_export.json` (opcional)
 

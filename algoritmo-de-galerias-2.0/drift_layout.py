@@ -14,12 +14,12 @@
 #   {"x": float, "y": float, "is_void": bool, "note": str}
 
 
-from math import cos, sin, pi
-
+from math import cos, pi, sin
 
 # ======================================================================
 # UTILIDADES BÁSICAS
 #
+
 
 def _pt(x, y, note="", is_void=False):
     """
@@ -64,7 +64,7 @@ def _interp(a, b, t):
     Retorna:
         tuple: (x,y) en el segmento ab
     """
-    return (a[0] + t*(b[0]-a[0]), a[1] + t*(b[1]-a[1]))
+    return (a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1]))
 
 
 def _poly_length(poly):
@@ -78,13 +78,13 @@ def _poly_length(poly):
         float: longitud
     """
     import math
-    L = 0.0
-    for i in range(len(poly)-1):
-        x1,y1 = poly[i]
-        x2,y2 = poly[i+1]
-        L += math.hypot(x2-x1, y2-y1)
-    return L
 
+    L = 0.0
+    for i in range(len(poly) - 1):
+        x1, y1 = poly[i]
+        x2, y2 = poly[i + 1]
+        L += math.hypot(x2 - x1, y2 - y1)
+    return L
 
 
 # DETECCIÓN DE SEGMENTOS CON BASE/TECHO/LADOS
@@ -103,25 +103,25 @@ def _segments_mask_by_coord(poly, which="base", eps=0.02):
     Retorna:
         list[int]: índices i tales que el segmento (poly[i]→poly[i+1]) está en esa banda.
     """
-    xmin,xmax,ymin,ymax = _bbox(poly)
+    xmin, xmax, ymin, ymax = _bbox(poly)
     dx = max(xmax - xmin, 1e-6)
     dy = max(ymax - ymin, 1e-6)
 
     idxs = []
-    for i in range(len(poly)-1):
-        x1,y1 = poly[i]
-        x2,y2 = poly[i+1]
+    for i in range(len(poly) - 1):
+        x1, y1 = poly[i]
+        x2, y2 = poly[i + 1]
         if which == "base":
-            if abs(y1 - ymin) <= eps*dy and abs(y2 - ymin) <= eps*dy:
+            if abs(y1 - ymin) <= eps * dy and abs(y2 - ymin) <= eps * dy:
                 idxs.append(i)
         elif which == "techo":
-            if abs(y1 - ymax) <= eps*dy and abs(y2 - ymax) <= eps*dy:
+            if abs(y1 - ymax) <= eps * dy and abs(y2 - ymax) <= eps * dy:
                 idxs.append(i)
         elif which == "lado_izq":
-            if abs(x1 - xmin) <= eps*dx and abs(x2 - xmin) <= eps*dx:
+            if abs(x1 - xmin) <= eps * dx and abs(x2 - xmin) <= eps * dx:
                 idxs.append(i)
         elif which == "lado_der":
-            if abs(x1 - xmax) <= eps*dx and abs(x2 - xmax) <= eps*dx:
+            if abs(x1 - xmax) <= eps * dx and abs(x2 - xmax) <= eps * dx:
                 idxs.append(i)
     return idxs
 
@@ -140,8 +140,7 @@ def _sample_on_segment_equidistant(a, b, n):
     """
     if n <= 0:
         return []
-    return [_interp(a,b,(i+1)/(n+1)) for i in range(n)]
-
+    return [_interp(a, b, (i + 1) / (n + 1)) for i in range(n)]
 
 
 # REPARTO EQUITATIVO SOBRE UN CONJUNTO DE SEGMENTOS
@@ -161,29 +160,29 @@ def _distribute_over_segments(poly, idxs, n):
         list[tuple]: [(x,y), ...] puntos sobre la cadena de segmentos
     """
     import math
+
     if not idxs or n <= 0:
         return []
 
-    segs  = [(poly[i], poly[i+1]) for i in idxs]
-    lens  = [math.hypot(b[0]-a[0], b[1]-a[1]) for (a,b) in segs]
-    Ltot  = sum(lens)
+    segs = [(poly[i], poly[i + 1]) for i in idxs]
+    lens = [math.hypot(b[0] - a[0], b[1] - a[1]) for (a, b) in segs]
+    Ltot = sum(lens)
     if Ltot <= 0:
         return []
 
     # Posiciones objetivo (centros de franja) en coordenada “longitud”
-    targets = [ (j + 0.5) / n * Ltot for j in range(n) ]
+    targets = [(j + 0.5) / n * Ltot for j in range(n)]
 
     pts = []
     acc = 0.0
-    k   = 0
-    for ln, (a,b) in zip(lens, segs):
+    k = 0
+    for ln, (a, b) in zip(lens, segs):
         while k < n and targets[k] <= acc + ln:
-            t = (targets[k] - acc)/ln if ln > 1e-12 else 0.5
+            t = (targets[k] - acc) / ln if ln > 1e-12 else 0.5
             pts.append(_interp(a, b, t))
             k += 1
         acc += ln
     return pts
-
 
 
 # ARCO SUPERIOR ENTRE CABEZAS DE PARED
@@ -200,11 +199,11 @@ def _interpolate_cross(p1, p2, y_cut):
     Retorna:
         tuple: (x, y_cut) intersección lineal
     """
-    (x1,y1), (x2,y2) = p1, p2
+    (x1, y1), (x2, y2) = p1, p2
     if y2 == y1:
         return (x1, y_cut)
     t = (y_cut - y1) / (y2 - y1)
-    return (x1 + t*(x2-x1), y_cut)
+    return (x1 + t * (x2 - x1), y_cut)
 
 
 def _extract_longest_arc_above(poly, y_cut):
@@ -222,13 +221,14 @@ def _extract_longest_arc_above(poly, y_cut):
     arcs = []
     cur = []
 
-    for i in range(len(poly)-1):
+    for i in range(len(poly) - 1):
         p1 = poly[i]
-        p2 = poly[i+1]
-        y1 = p1[1]; y2 = p2[1]
+        p2 = poly[i + 1]
+        y1 = p1[1]
+        y2 = p2[1]
 
-        p1_above = (y1 >= y_cut)
-        p2_above = (y2 >= y_cut)
+        p1_above = y1 >= y_cut
+        p2_above = y2 >= y_cut
 
         if p1_above and not cur:
             cur = [p1]
@@ -253,10 +253,12 @@ def _extract_longest_arc_above(poly, y_cut):
 
     def arc_len(a):
         import math
+
         L = 0.0
-        for i in range(len(a)-1):
-            x1,y1=a[i]; x2,y2=a[i+1]
-            L += math.hypot(x2-x1, y2-y1)
+        for i in range(len(a) - 1):
+            x1, y1 = a[i]
+            x2, y2 = a[i + 1]
+            L += math.hypot(x2 - x1, y2 - y1)
         return L
 
     arcs.sort(key=arc_len, reverse=True)
@@ -274,31 +276,35 @@ def _sample_on_open_poly(poly, n):
     Retorna:
         list[tuple]: [(x,y), ...]
     """
-    import math, bisect
+    import bisect
+    import math
+
     if n <= 0 or len(poly) < 2:
         return []
     d = [0.0]
-    for i in range(len(poly)-1):
-        x1,y1 = poly[i]
-        x2,y2 = poly[i+1]
-        d.append(d[-1] + math.hypot(x2-x1, y2-y1))
+    for i in range(len(poly) - 1):
+        x1, y1 = poly[i]
+        x2, y2 = poly[i + 1]
+        d.append(d[-1] + math.hypot(x2 - x1, y2 - y1))
     L = d[-1] if d[-1] > 0 else 1.0
 
     def point_at(s):
-        if s <= 0: return poly[0]
-        if s >= L: return poly[-1]
-        i = max(0, min(len(poly)-2, bisect.bisect_right(d, s)-1))
+        if s <= 0:
+            return poly[0]
+        if s >= L:
+            return poly[-1]
+        i = max(0, min(len(poly) - 2, bisect.bisect_right(d, s) - 1))
         ds = s - d[i]
-        x1,y1 = poly[i]
-        x2,y2 = poly[i+1]
-        seg = d[i+1] - d[i]
-        t = 0.0 if abs(seg) < 1e-12 else ds/seg
-        return (x1 + t*(x2-x1), y1 + t*(y2-y1))
+        x1, y1 = poly[i]
+        x2, y2 = poly[i + 1]
+        seg = d[i + 1] - d[i]
+        t = 0.0 if abs(seg) < 1e-12 else ds / seg
+        return (x1 + t * (x2 - x1), y1 + t * (y2 - y1))
 
     if n == 1:
-        return [point_at(L/2)]
-    step = L/(n-1)
-    return [point_at(k*step) for k in range(n)]
+        return [point_at(L / 2)]
+    step = L / (n - 1)
+    return [point_at(k * step) for k in range(n)]
 
 
 def _wall_top_y(poly):
@@ -313,15 +319,15 @@ def _wall_top_y(poly):
     Retorna:
         float: y_cut recomendado para el arco de corona.
     """
-    xmin,xmax,ymin,ymax = _bbox(poly)
-    left_idxs  = _segments_mask_by_coord(poly, "lado_izq")
+    xmin, xmax, ymin, ymax = _bbox(poly)
+    left_idxs = _segments_mask_by_coord(poly, "lado_izq")
     right_idxs = _segments_mask_by_coord(poly, "lado_der")
 
     def max_y_on_segments(idxs):
-        ys=[]
+        ys = []
         for i in idxs:
             ys.append(poly[i][1])
-            ys.append(poly[i+1][1])
+            ys.append(poly[i + 1][1])
         return max(ys) if ys else None
 
     yl = max_y_on_segments(left_idxs)
@@ -330,8 +336,7 @@ def _wall_top_y(poly):
     if yl is not None and yr is not None:
         return min(yl, yr)  # segura: entre las cabezas
     # Fallback suave (por ejemplo en semicircular sin paredes):
-    return ymax - 0.02*(ymax - ymin)
-
+    return ymax - 0.02 * (ymax - ymin)
 
 
 # COLOCADORES EN CONTORNO
@@ -351,11 +356,19 @@ def place_zapateras(tunnel_poly, n, note="zapatera"):
     """
     idxs = _segments_mask_by_coord(tunnel_poly, "base")
     pts = _distribute_over_segments(tunnel_poly, idxs, n)
-    return [_pt(x,y, note=note) for (x,y) in pts]
+    return [_pt(x, y, note=note) for (x, y) in pts]
 
 
-def place_cajas(tunnel_poly, n_per_side, wall_top_y=None, wall_x_left=None, wall_x_right=None,
-                top_clear_m=0.05, bottom_clear_m=0.05, note="caja"):
+def place_cajas(
+    tunnel_poly,
+    n_per_side,
+    wall_top_y=None,
+    wall_x_left=None,
+    wall_x_right=None,
+    top_clear_m=0.05,
+    bottom_clear_m=0.05,
+    note="caja",
+):
     """
     Coloca N 'cajas' por lado EXCLUSIVAMENTE sobre las paredes (si existen).
     Si no hay paredes (p.ej. Semicircular), retorna [].
@@ -391,7 +404,7 @@ def place_cajas(tunnel_poly, n_per_side, wall_top_y=None, wall_x_left=None, wall
 
     holes = []
     for y in y_levels:
-        holes.append({"x": wall_x_left,  "y": y, "note": note})
+        holes.append({"x": wall_x_left, "y": y, "note": note})
         holes.append({"x": wall_x_right, "y": y, "note": note})
     return holes
 
@@ -421,17 +434,18 @@ def place_corona(tunnel_poly, n, note="corona"):
     arc = _extract_longest_arc_above(tunnel_poly, y_cut)
     if len(arc) >= 2:
         pts = _sample_on_open_poly(arc, n)
-        return [_pt(x,y, note=note) for (x,y) in pts]
+        return [_pt(x, y, note=note) for (x, y) in pts]
 
     # Fallback: usar “techo” plano si lo hay
     idxs = _segments_mask_by_coord(tunnel_poly, "techo")
     pts = _distribute_over_segments(tunnel_poly, idxs, n)
-    return [_pt(x,y, note=note) for (x,y) in pts]
+    return [_pt(x, y, note=note) for (x, y) in pts]
 
 
 # ======================================================================
 # FAMILIAS INTERIORES (REJILLA ROBUSTA)
 # ======================================================================
+
 
 def _point_in_polygon(poly, x, y):
     """
@@ -458,8 +472,9 @@ def _point_in_polygon(poly, x, y):
     for i in range(len(p)):
         xi, yi = p[i]
         xj, yj = p[j]
-        intersects = ((yi > y) != (yj > y)) and \
-                     (x < (xj - xi) * (y - yi) / (yj - yi + 1e-12) + xi)
+        intersects = ((yi > y) != (yj > y)) and (
+            x < (xj - xi) * (y - yi) / (yj - yi + 1e-12) + xi
+        )
         if intersects:
             inside = not inside
         j = i
@@ -480,14 +495,14 @@ def place_aux_grid(tunnel_poly, nx, ny, note="aux"):
     Retorna:
         list[dict]: perforaciones de la rejilla
     """
-    xmin,xmax,ymin,ymax = _bbox(tunnel_poly)
+    xmin, xmax, ymin, ymax = _bbox(tunnel_poly)
     if nx <= 0 or ny <= 0:
         return []
 
-    xs = [xmin + (xmax-xmin)*(i+1)/(nx+1) for i in range(nx)]
-    ys = [ymin + (ymax-ymin)*(j+1)/(ny+1) for j in range(ny)]
+    xs = [xmin + (xmax - xmin) * (i + 1) / (nx + 1) for i in range(nx)]
+    ys = [ymin + (ymax - ymin) * (j + 1) / (ny + 1) for j in range(ny)]
 
-    out=[]
+    out = []
     for y in ys:
         for x in xs:
             if _point_in_polygon(tunnel_poly, x, y):
@@ -498,6 +513,7 @@ def place_aux_grid(tunnel_poly, nx, ny, note="aux"):
 # ======================================================================
 # CONTRACUELES
 # ======================================================================
+
 
 def place_contracuele_hex(center, r=0.8, note="contracuele"):
     """
@@ -512,11 +528,11 @@ def place_contracuele_hex(center, r=0.8, note="contracuele"):
         list[dict]: perforaciones del contracuele
     """
     cx, cy = center
-    pts=[]
+    pts = []
     for k in range(6):
-        th = pi/6 + k*pi/3  # rotado suave
-        x = cx + r*cos(th)
-        y = cy + r*sin(th)
+        th = pi / 6 + k * pi / 3  # rotado suave
+        x = cx + r * cos(th)
+        y = cy + r * sin(th)
         pts.append(_pt(x, y, note=note))
     return pts
 
@@ -537,15 +553,27 @@ def place_contracuele_rect(center, w=1.4, h=1.0, n_per_side=2, note="contracuele
         list[dict]: perforaciones del contracuele
     """
     cx, cy = center
-    x1, x2 = cx - w/2, cx + w/2
-    y1, y2 = cy - h/2, cy + h/2
+    x1, x2 = cx - w / 2, cx + w / 2
+    y1, y2 = cy - h / 2, cy + h / 2
     out = []
     # base
-    out += [_pt(*_interp((x1,y1),(x2,y1),(i+1)/(n_per_side+1)), note=note) for i in range(n_per_side)]
+    out += [
+        _pt(*_interp((x1, y1), (x2, y1), (i + 1) / (n_per_side + 1)), note=note)
+        for i in range(n_per_side)
+    ]
     # techo
-    out += [_pt(*_interp((x1,y2),(x2,y2),(i+1)/(n_per_side+1)), note=note) for i in range(n_per_side)]
+    out += [
+        _pt(*_interp((x1, y2), (x2, y2), (i + 1) / (n_per_side + 1)), note=note)
+        for i in range(n_per_side)
+    ]
     # lado izq
-    out += [_pt(*_interp((x1,y1),(x1,y2),(i+1)/(n_per_side+1)), note=note) for i in range(n_per_side)]
+    out += [
+        _pt(*_interp((x1, y1), (x1, y2), (i + 1) / (n_per_side + 1)), note=note)
+        for i in range(n_per_side)
+    ]
     # lado der
-    out += [_pt(*_interp((x2,y1),(x2,y2),(i+1)/(n_per_side+1)), note=note) for i in range(n_per_side)]
+    out += [
+        _pt(*_interp((x2, y1), (x2, y2), (i + 1) / (n_per_side + 1)), note=note)
+        for i in range(n_per_side)
+    ]
     return out

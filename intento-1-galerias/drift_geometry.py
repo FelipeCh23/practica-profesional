@@ -7,13 +7,14 @@ del ejemplo del profe: actualizar centro, calcular posiciones relativas,
 devolver vértices.
 """
 
-from math import cos, sin, pi, pow
-
+from math import cos, pi, pow, sin
 
 # Utilidad interna
 
-def _update_center(center_x: float, center_y: float,
-                   offset_x: float = 0, offset_y: float = 0):
+
+def _update_center(
+    center_x: float, center_y: float, offset_x: float = 0, offset_y: float = 0
+):
     """
     Actualiza el centro de dibujo con el offset proporcionado.
 
@@ -30,6 +31,7 @@ def _update_center(center_x: float, center_y: float,
 
 
 # 1. Rectangular
+
 
 def rectangular(center_x: float, center_y: float, width: float, height: float):
     """
@@ -48,15 +50,21 @@ def rectangular(center_x: float, center_y: float, width: float, height: float):
         (center_x - dx, center_y - dy),
         (center_x + dx, center_y - dy),
         (center_x + dx, center_y + dy),
-        (center_x - dx, center_y + dy)
+        (center_x - dx, center_y + dy),
     ]
 
 
 # 2. Semicircular
 
 
-def semicircular(center_x: float, center_y: float, radius: float, n_points: int = 20,
-                 offset_x: float = 0, offset_y: float = 0):
+def semicircular(
+    center_x: float,
+    center_y: float,
+    radius: float,
+    n_points: int = 20,
+    offset_x: float = 0,
+    offset_y: float = 0,
+):
     """
     Calcula los vértices de una galería semicircular con base plana.
 
@@ -97,11 +105,18 @@ def semicircular(center_x: float, center_y: float, radius: float, n_points: int 
     return vertices
 
 
-
 # 3. D-Shaped
 
-def d_shaped(center_x: float, center_y: float, width: float, height: float, n_points: int = 30,
-             offset_x: float = 0, offset_y: float = 0):
+
+def d_shaped(
+    center_x: float,
+    center_y: float,
+    width: float,
+    height: float,
+    n_points: int = 30,
+    offset_x: float = 0,
+    offset_y: float = 0,
+):
     """
     Calcula los vértices de una galería D-Shaped: base plana + arco superior semicircular.
 
@@ -157,14 +172,18 @@ def d_shaped(center_x: float, center_y: float, width: float, height: float, n_po
     return vertices
 
 
-
 # 4. Horseshoe
 
 
-
-
-def horseshoe(center_x: float, center_y: float, width: float, height: float,
-              n_curve: int = 10, offset_x: float = 0, offset_y: float = 0):
+def horseshoe(
+    center_x: float,
+    center_y: float,
+    width: float,
+    height: float,
+    n_curve: int = 10,
+    offset_x: float = 0,
+    offset_y: float = 0,
+):
     """
     Calcula los vértices de una galería Horseshoe (herradura) centrada en un punto de referencia.
 
@@ -188,7 +207,7 @@ def horseshoe(center_x: float, center_y: float, width: float, height: float,
     center_x, center_y = _update_center(center_x, center_y, offset_x, offset_y)
 
     dx = width / 2  # mitad del ancho
-    dy = height     # altura de las paredes rectas
+    dy = height  # altura de las paredes rectas
 
     # Puntos de la base y paredes
     left_base = (center_x - dx, center_y)
@@ -201,7 +220,7 @@ def horseshoe(center_x: float, center_y: float, width: float, height: float,
     for i in range(n_curve + 1):
         theta = pi * i / n_curve  # de 0 a pi
         x = center_x - dx + (width) * 0.5 * (1 - cos(theta))  # escala horizontal
-        y = center_y + dy + (width / 2) * sin(theta)          # arco hacia arriba
+        y = center_y + dy + (width / 2) * sin(theta)  # arco hacia arriba
         curve_points.append((x, y))
 
     # Unir vértices en orden para formar la herradura cerrada
@@ -210,11 +229,17 @@ def horseshoe(center_x: float, center_y: float, width: float, height: float,
     return verts
 
 
-
 # 5. Bézier Tunnel (techo curvo, paredes rectas)
 
-def bezier_tunnel(center_x: float, center_y: float, width: float, wall_height: float,
-                  curve_height: float, n_points: int = 30):
+
+def bezier_tunnel(
+    center_x: float,
+    center_y: float,
+    width: float,
+    wall_height: float,
+    curve_height: float,
+    n_points: int = 30,
+):
     """
     Calcula los vértices de una galería tipo Bezier con paredes verticales y techo curvo.
 
@@ -237,18 +262,28 @@ def bezier_tunnel(center_x: float, center_y: float, width: float, wall_height: f
     center_x, center_y = _update_center(center_x, center_y)
 
     # Puntos de control de la curva tipo Bezier
-    x0, y0 = center_x - width/2, center_y + wall_height
-    x3, y3 = center_x + width/2, center_y + wall_height
-    x1, y1 = x0 + width/3, y0 + curve_height
-    x2, y2 = x0 + 2*width/3, y0 + curve_height
+    x0, y0 = center_x - width / 2, center_y + wall_height
+    x3, y3 = center_x + width / 2, center_y + wall_height
+    x1, y1 = x0 + width / 3, y0 + curve_height
+    x2, y2 = x0 + 2 * width / 3, y0 + curve_height
 
     verts = []
 
     # Curva superior (Bezier cúbica)
     for i in range(n_points + 1):
         t = i / n_points
-        Bx = pow(1-t,3)*x0 + 3*pow(1-t,2)*t*x1 + 3*(1-t)*pow(t,2)*x2 + pow(t,3)*x3
-        By = pow(1-t,3)*y0 + 3*pow(1-t,2)*t*y1 + 3*(1-t)*pow(t,2)*y2 + pow(t,3)*y3
+        Bx = (
+            pow(1 - t, 3) * x0
+            + 3 * pow(1 - t, 2) * t * x1
+            + 3 * (1 - t) * pow(t, 2) * x2
+            + pow(t, 3) * x3
+        )
+        By = (
+            pow(1 - t, 3) * y0
+            + 3 * pow(1 - t, 2) * t * y1
+            + 3 * (1 - t) * pow(t, 2) * y2
+            + pow(t, 3) * y3
+        )
         verts.append((Bx, By))
 
     # Pared derecha
