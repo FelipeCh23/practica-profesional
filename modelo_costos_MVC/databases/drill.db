@@ -1,0 +1,36 @@
+{
+    "Simba M7": {
+        "name": "Simba M7",
+        "supplier": "Epiroc",
+        "width": 2.5,
+        "height": 3.0,
+        "mast": 4.0,
+        "rod_number": 12,
+        "rod_length": 2.0,
+        "max_length": 24.0,
+        "min_diam": 38.0,
+        "max_diam": 78.0
+    },
+    "Simba 1254": {
+        "supplier": "Epiroc",
+        "width": 2.5,
+        "height": 3.0,
+        "mast": 4.0,
+        "rod_number": 12,
+        "rod_length": 2.0,
+        "max_length": 24.0,
+        "min_diam": 38.0,
+        "max_diam": 78.0
+    },
+    "Simba M40 S": {
+        "supplier": "Epiroc",
+        "width": 2.37,
+        "height": 3.2,
+        "mast": 4.0,
+        "rod_number": 27,
+        "rod_length": 3.0,
+        "max_length": 51.0,
+        "min_diam": 76.0,
+        "max_diam": 102.0
+    }
+}

@@ -1,0 +1,43 @@
+{
+  "fecha_modelo": "2025-05-26",
+  "moneda_modelo": "JPY",
+  "tipo_cambio_modelo": 900.0,
+  "Explosivo": {
+    "Emulnor 500 (Famesa)": {
+      "unidad": "unidad",
+      "precio": 0.0
+    },
+    "Senatel Pulsar (Orica)": {
+      "unidad": "unidad",
+      "precio": 2.0
+    }
+  },
+  "Perforación": {
+    "75": {
+      "unidad": "m",
+      "precio": 2.0
+    }
+  },
+  "Detonadores": {
+    "Exel MS": {
+      "unidad": "unidad",
+      "precio": 2.0
+    }
+  },
+  "Iniciadores": {
+    "Pentex DS 150": {
+      "unidad": "unidad",
+      "precio": 3.0
+    }
+  },
+  "Otros": {
+    "Labor": {
+      "unidad": "hr",
+      "precio": 180.0
+    },
+    "Logger": {
+      "unidad": "unidad",
+      "precio": 50.0
+    }
+  }
+}

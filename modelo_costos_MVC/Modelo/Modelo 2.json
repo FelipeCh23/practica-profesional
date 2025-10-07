@@ -1,0 +1,25 @@
+{
+  "fecha_modelo": "2025-05-26",
+  "moneda_modelo": "USD",
+  "tipo_cambio_modelo": 900.0,
+  "Explosivo": {
+    "Senatel Pulsar (Orica)": {
+      "unidad": "unid",
+      "precio": 1.6
+    }
+  },
+  "Perforación": {
+    "60": {
+      "unidad": "m",
+      "precio": 3.0
+    }
+  },
+  "Detonadores": {},
+  "Iniciadores": {},
+  "Otros": {
+    "Labor": {
+      "unidad": "hr",
+      "precio": 130.0
+    }
+  }
+}

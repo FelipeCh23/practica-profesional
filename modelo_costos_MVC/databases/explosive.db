@@ -1,0 +1,175 @@
+{
+    "Duoblast - H (Enaex)": {
+        "type": "Emulsi\u00f3n",
+        "density": 1.1,
+        "RWS": 77.0,
+        "VOD": 4000.0,
+        "critical": 30.0,
+        "cartridge": false,
+        "waterproof": true
+    },
+    "Duoblast - V (Enaex)": {
+        "type": "Emulsi\u00f3n",
+        "density": 1.15,
+        "RWS": 77.0,
+        "VOD": 5000.0,
+        "critical": 30.0,
+        "cartridge": false,
+        "waterproof": false
+    },
+    "Emulnor 1000 (Famesa)": {
+        "type": "Emulsi\u00f3n",
+        "density": 1.13,
+        "RWS": 85.0,
+        "VOD": 4500.0,
+        "critical": 24.5,
+        "cartridge": true,
+        "waterproof": true,
+        "diameter": 31.75, 
+        "length": 304.8
+    },
+    "Emulnor 3000 (Famesa)": {
+        "type": "Emulsi\u00f3n",
+        "density": 1.14,
+        "RWS": 100.0,
+        "VOD": 4400.0,
+        "critical": 30.0,
+        "cartridge": true,
+        "waterproof": true,
+        "diameter": 31.75, 
+        "length": 406.4
+    },
+    "Emulnor 500 (Famesa)": {
+        "type": "Emulsi\u00f3n",
+        "density": 0.9,
+        "RWS": 63.0,
+        "VOD": 3500.0,
+        "critical": 24.5,
+        "cartridge": true,
+        "waterproof": true,
+        "diameter": 25.4, 
+        "length": 406.4
+    },
+    "Emulnor 5000 (Famesa)": {
+        "type": "Emulsi\u00f3n",
+        "density": 1.16,
+        "RWS": 105.0,
+        "VOD": 4200.0,
+        "critical": 25.4,
+        "cartridge": true,
+        "waterproof": true,
+        "diameter": 38.1, 
+        "length": 203.2
+    },
+    "Emultex - PDBG (Enaex)": {
+        "type": "Emulsi\u00f3n",
+        "density": 1.15,
+        "RWS": 79.0,
+        "VOD": 4054.0,
+        "critical": 38.1,
+        "cartridge": false,
+        "waterproof": true
+    },
+    "Riodin (Maxam)": {
+        "type": "ANFO",
+        "density": 1.5,
+        "RWS": 80.0,
+        "VOD": 6000.0,
+        "critical": 42.0,
+        "cartridge": true,
+        "waterproof": true,
+        "diameter": 29, 
+        "length": 203.0
+    },
+    "Riogel Troner HE (Maxam)": {
+        "type": "Hidrogel",
+        "density": 1.25,
+        "RWS": 122.0,
+        "VOD": 5500.0,
+        "critical": 42.0,
+        "cartridge": true,
+        "waterproof": true,
+        "diameter": 50, 
+        "length": 500
+    },
+    "Rioxam AL (Maxam)": {
+        "type": "ALANFO",
+        "density": 0.82,
+        "RWS": 106.0,
+        "VOD": 5100.0,
+        "critical": 38.0,
+        "cartridge": false,
+        "waterproof": false
+    },
+    "Rioxam ST (Maxam)": {
+        "type": "ANFO",
+        "density": 0.8,
+        "RWS": 100.0,
+        "VOD": 5100.0,
+        "critical": 38.0,
+        "cartridge": false,
+        "waterproof": false
+    },
+    "Riomax HE (Maxam)": {
+        "type": "Hidrogel",
+        "density": 1.15,
+        "RWS": 127.0,
+        "VOD": 4300.0,
+        "critical": 42.0,
+        "cartridge": true,
+        "waterproof": true,
+        "diameter": 38, 
+        "length": 400
+    },
+    "Senatel Magnafrac (Orica)": {
+        "type": "Emulsi\u00f3n",
+        "density": 1.2,
+        "RWS": 117.0,
+        "VOD": 6000.0,
+        "critical": 22.0,
+        "cartridge": true,
+        "waterproof": true,
+        "diameter": 50, 
+        "length": 200
+    },
+    "Senatel Powersplit (Orica)": {
+        "type": "Emulsi\u00f3n",
+        "density": 1.15,
+        "RWS": 115.0,
+        "VOD": 6175.0,
+        "critical": 22.0,
+        "cartridge": true,
+        "waterproof": true,
+        "diameter": 38,
+        "length": 20000
+    },
+    "Senatel Pulsar (Orica)": {
+        "type": "Emulsi\u00f3n",
+        "density": 1.17,
+        "RWS": 134.0,
+        "VOD": 5650.0,
+        "critical": 28.0,
+        "cartridge": true,
+        "waterproof": true,
+        "diameter": 70, 
+        "length": 500
+    },
+    "Rioxam ST (Maxam) - copia": {
+        "type": "ANFO",
+        "density": 0.8,
+        "RWS": 100.0,
+        "VOD": 5100.0,
+        "critical": 38.0,
+        "cartridge": false,
+        "waterproof": false
+    },
+    "Explosivo Caser\u00f3n p\u00f3rfido cupr\u00edfero": {
+        "type": "ANFO",
+        "density": 0.9,
+        "RWS": 100.0,
+        "VOD": 2000.0,
+        "critical": 38.0,
+        "cartridge": false,
+        "waterproof": false
+    }
+}

@@ -1,0 +1,22 @@
+{
+    "Pentex DS 150": {
+        "weight": 150.0,
+        "diameter": 38.0,
+        "length": 115.0,
+        "hole_diam": 11.5,
+        "det_weight": 0.6,
+        "det_number": 2,
+        "det_diam": 8.0,
+        "det_depth": 105.0
+    },
+    "Pentex DS 250": {
+        "weight": 250.0,
+        "diameter": 44.0,
+        "length": 130.0,
+        "hole_diam": 11.5,
+        "det_weight": 0.6,
+        "det_number": 2,
+        "det_diam": 8.0,
+        "det_depth": 105.0
+    }
+}

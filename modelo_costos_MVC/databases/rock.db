@@ -1,0 +1,62 @@
+{
+    "Granito": {
+        "density": 2.7,
+        "compressive": 100.0,
+        "tensile": 7.5,
+        "young": 40.0,
+        "poisson": 0.36,
+        "p_wave": 4500.0,
+        "RMR": 50.0,
+        "RQD": 45.0
+    },
+    "Diorita": {
+        "density": 2.9,
+        "compressive": 184.0,
+        "tensile": 15.0,
+        "young": 28.6,
+        "poisson": 0.89,
+        "p_wave": 4800.0,
+        "RMR": 55.0,
+        "RQD": 50.0
+    },
+    "Andesita": {
+        "density": 2.6,
+        "compressive": 100.0,
+        "tensile": 7.5,
+        "young": 40.0,
+        "poisson": 0.36,
+        "p_wave": 4500.0,
+        "RMR": 50.0,
+        "RQD": 45.0
+    },
+    "Granito 2": {
+        "density": 2.7,
+        "compressive": 100.0,
+        "tensile": 7.5,
+        "young": 40.0,
+        "poisson": 0.36,
+        "p_wave": 4500.0,
+        "RMR": 50.0,
+        "RQD": 45.0
+    },
+    "Roca Esmeralda": {
+        "density": 2.7,
+        "compressive": 109.0,
+        "tensile": 10.0,
+        "young": 43.0,
+        "poisson": 0.13,
+        "p_wave": 4100.0,
+        "RMR": 1.0,
+        "RQD": 1.0
+    },
+    "P\u00f3rfido cuprifero": {
+        "density": 2.6,
+        "compressive": 100.0,
+        "tensile": 5.0,
+        "young": 50.0,
+        "poisson": 0.21,
+        "p_wave": 4000.0,
+        "RMR": 50.0,
+        "RQD": 45.0
+    }
+}
