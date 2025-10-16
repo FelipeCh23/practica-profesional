@@ -1,0 +1,21 @@
+{
+  "currency": "USD",
+  "perforacion": {
+    "64": 8.0,
+    "76": 10.0,
+    "89": 12.0,
+    "190": 25.0,
+    "250": 40.0
+  },
+  "explosive": {
+    "Duoblast - H (Enaex)": 1.50,   // USD por kg (ejemplo)
+    "ANFO": 0.70
+  },
+  "detonators": {
+    "Nonel 17ft": 1.50
+  },
+  "boosters": {
+    "Booster 200g": 0.80
+  },
+  "shock_tube_price_per_m": 0.10
+}
