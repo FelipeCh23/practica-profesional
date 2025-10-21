@@ -1,0 +1,221 @@
+import numpy as np
+import shapely as shp
+import json
+
+# ===========================================================================
+# SECCIÓN 1: FUNCIONES GEOMÉTRICAS AUXILIARES (Adaptadas de appRing.py)
+# ===========================================================================
+
+def get_angle(line_1: shp.LineString, line_2: shp.LineString) -> float:
+    """Calcula el ángulo en grados entre dos líneas para el rango [-180, 180]."""
+    u = np.array(line_1.coords[1]) - np.array(line_1.coords[0])
+    v = np.array(line_2.coords[1]) - np.array(line_2.coords[0])
+    num = u[0]*v[1] - u[1]*v[0]
+    den = u[0]*v[0] + u[1]*v[1]
+    angle = np.degrees(np.arctan2(num, den))
+    return angle
+
+def sort_points(geometry, pivot: shp.Point):
+    """Ordena los puntos de una geometría desde el más cercano al más lejano al pivote."""
+    points = list(shp.extract_unique_points(geometry).geoms)
+    points.sort(key=lambda point: point.distance(pivot))
+    return points
+
+# ===========================================================================
+# SECCIÓN 2: LÓGICA DE GENERACIÓN DE DISEÑOS (Adaptada de HolesDesigner)
+# ===========================================================================
+
+def find_endpoints(stope: shp.Polygon, drift: shp.Polygon, pivot: shp.Point, line: shp.LineString, max_length: float):
+    """Halla el collar (inicio) y el fondo (fin) de una perforación."""
+    collar = line.intersection(drift.exterior)
+    if collar.is_empty:
+        return None, None # La línea de perforación no pasa por la galería
+
+    max_toe = line.interpolate(max_length + collar.distance(pivot))
+    hole_line = shp.LineString([pivot, max_toe])
+    
+    # Usamos buffer para evitar errores de precisión si el pivote está justo en el borde
+    if pivot.intersects(stope.exterior):
+        stope = stope.buffer(1e-6)
+
+    intersections = hole_line.intersection(stope.exterior)
+    if intersections.is_empty:
+        return collar, max_toe # El tiro no alcanza el caserón, se usa la longitud máxima
+
+    if isinstance(intersections, shp.Point):
+        toe = intersections
+    else: # Múltiples intersecciones, elegimos la más lejana
+        toe = sort_points(intersections, pivot)[-1]
+
+    return collar, toe
+
+def angular_method(stope_geom, drift_geom, pivot_geom, params):
+    """
+    Genera un abanico de perforación usando espaciamiento angular constante.
+    Esta es una de las lógicas clave de `appRing.py`.
+    """
+    collars, toes = [], []
+    stope = shp.Polygon(stope_geom)
+    drift = shp.Polygon(drift_geom)
+    pivot = shp.Point(pivot_geom)
+
+    angle_range = abs(params['max_angle'] - params['min_angle'])
+    
+    if params['holes_number'] > 1:
+        angle_step = angle_range / (params['holes_number'] - 1)
+    else:
+        angle_step = 0
+
+    current_angle = params['min_angle']
+
+    for i in range(params['holes_number']):
+        # Se crea una línea de referencia muy larga y se rota al ángulo deseado
+        ref_line = shp.LineString([pivot, (pivot.x, pivot.y + 10000)])
+        rotated_line = shp.affinity.rotate(ref_line, angle=current_angle, origin=pivot)
+
+        # Se encuentran los puntos de inicio y fin del tiro
+        collar, toe = find_endpoints(stope, drift, pivot, rotated_line, params['max_length'])
+
+        if collar and toe:
+             # Se podría añadir aquí una validación de longitud mínima como en `valid_hole`
+            collars.append(list(collar.coords)[0])
+            toes.append(list(toe.coords)[0])
+
+        current_angle += angle_step
+
+    return {"geometry": [collars, toes]}
+
+# ===========================================================================
+# SECCIÓN 3: LÓGICA DE CÁLCULO DE COSTOS (Adaptada de nuestro 'Budget Blast')
+# ===========================================================================
+
+def calculate_total_cost(design: dict, unit_costs: dict) -> float:
+    """Calcula el costo total de un diseño completo (perforación, explosivos, etc.)."""
+    
+    # 1. Costo de Perforación
+    total_drill_length = 0
+    if 'holes' in design and 'geometry' in design['holes']:
+        collars = np.array(design['holes']['geometry'][0])
+        toes = np.array(design['holes']['geometry'][1])
+        total_drill_length = np.sum(np.linalg.norm(toes - collars, axis=1))
+    
+    cost_drilling = total_drill_length * unit_costs['perforacion_por_metro']
+
+    # 2. Costo de Explosivos (simplificado por ahora)
+    total_charge_mass = 0
+    if 'charges' in design:
+        # Aquí iría la lógica para calcular la masa total de explosivo
+        # ql = (7.854e-4) * density * (diameter ** 2)
+        # total_charge_mass = total_charge_length * ql
+        pass # Por ahora lo dejamos en 0
+        
+    cost_explosives = total_charge_mass * unit_costs['explosivo_por_kg']
+    
+    # 3. Costo de Detonadores (simplificado)
+    num_detonators = 0
+    if 'blasts' in design:
+        num_detonators = design['blasts'].get('detonator', {}).get('cantidad', 0)
+        
+    cost_detonators = num_detonators * unit_costs['detonador_por_unidad']
+
+    return cost_drilling + cost_explosives + cost_detonators
+
+# ===========================================================================
+# SECCIÓN 4: EL OPTIMIZADOR (Implementación del Diagrama de Flujo)
+# ===========================================================================
+
+def optimize_fan_design(stope_geom, drift_geom, pivot_geom, budget_params):
+    """
+    Bucle principal que itera para encontrar el mejor diseño de abanico.
+    """
+    valid_designs = []
+    
+    s_min = budget_params['s_min']
+    s_max = budget_params['s_max']
+    
+    print(f"🚀 Iniciando optimización. Probando espaciamientos de {s_min} a {s_max} m...")
+
+    # Bucle principal: iterar sobre diferentes espaciamientos (S)
+    # Por ahora, simulamos el cambio de S cambiando el número de tiros.
+    for num_tiros in range(int(s_min), int(s_max) + 1):
+        
+        print(f"\n--- Probando con {num_tiros} tiros ---")
+        
+        # 1. CONSTRUIR EL DISEÑO
+        # Usamos el método angular como ejemplo. `s` aquí se interpreta como el número de tiros.
+        design_params = {
+            'min_angle': -45.0,
+            'max_angle': 45.0,
+            'max_length': 20.0, # Longitud máxima de perforación en metros
+            'holes_number': num_tiros
+        }
+        
+        # Generamos la geometría de la perforación
+        holes_design = angular_method(stope_geom, drift_geom, pivot_geom, design_params)
+        
+        # Ensamblamos un objeto de diseño completo (simplificado)
+        current_design = {
+            "holes": holes_design,
+            # Aquí se generarían 'charges' y 'blasts'
+            "blasts": {"detonator": {"cantidad": num_tiros}}
+        }
+
+        # 2. CALCULAR EL COSTO
+        total_cost = calculate_total_cost(current_design, budget_params['unit_costs'])
+        print(f"Costo del diseño generado: ${total_cost:,.2f}")
+
+        # 3. VERIFICAR PRESUPUESTO
+        if total_cost <= budget_params['presupuesto_maximo']:
+            print(f"✅ Diseño VÁLIDO (dentro del presupuesto)")
+            # Guardamos el diseño y su costo
+            valid_designs.append({'design': current_design, 'cost': total_cost})
+        else:
+            print(f"❌ Diseño INVÁLIDO (excede el presupuesto)")
+
+    # 4. SELECCIONAR EL MEJOR DISEÑO
+    if not valid_designs:
+        print("\nNo se encontró ningún diseño que cumpliera con el presupuesto.")
+        return None
+    
+    # Criterio: el más barato de los válidos
+    best_design = min(valid_designs, key=lambda x: x['cost'])
+    
+    print("\n=========================================")
+    print("🏆 Optimización Finalizada 🏆")
+    print(f"Se encontraron {len(valid_designs)} diseños válidos.")
+    print(f"El mejor diseño tiene {len(best_design['design']['holes']['geometry'][0])} tiros y un costo de ${best_design['cost']:,.2f}")
+    print("=========================================")
+    
+    return best_design
+
+
+# ===========================================================================
+# SECCIÓN 5: EJECUCIÓN DEL SCRIPT
+# ===========================================================================
+
+if __name__ == '__main__':
+    # Entradas del problema (similares al JSON que definiste)
+    stope_polygon = [[0,0], [20,0], [20,30], [0,30]]
+    drift_polygon = [[8,10], [12,10], [12,14], [8,14]]
+    pivot_point = [10, 12]
+
+    # Parámetros del presupuesto y optimización
+    budget_parameters = {
+        "presupuesto_maximo": 10000.0,
+        "s_min": 5,  # Para este ejemplo, interpretamos S como "número de tiros" mínimo
+        "s_max": 15, # y máximo.
+        "unit_costs": {
+            "perforacion_por_metro": 25.5,
+            "explosivo_por_kg": 0, # Aún no implementado
+            "detonador_por_unidad": 15.0
+        }
+    }
+    
+    # Ejecutar el optimizador
+    resultado_optimo = optimize_fan_design(stope_polygon, drift_polygon, pivot_point, budget_parameters)
+
+    # (Opcional) Guardar el mejor diseño en un archivo JSON
+    if resultado_optimo:
+        with open('mejor_diseño.json', 'w') as f:
+            json.dump(resultado_optimo['design'], f, indent=4)
+        print("\nEl mejor diseño se ha guardado en 'mejor_diseño.json'")
