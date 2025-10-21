@@ -1,73 +1,103 @@
 # controller.py
+"""
+Controlador: conecta la vista con el modelo.
+
+Responsabilidades:
+- Leer y validar parámetros desde la vista.
+- Actualizar las geometrías en el modelo.
+- Ejecutar la optimización en un hilo (para no bloquear la UI).
+- Mostrar resultados y exportar el mejor diseño a JSON.
+- Proveer a la vista acceso a una alternativa por índice (tabla).
+"""
+
+from __future__ import annotations
+
 import json
 import threading
-import numpy as np
 from tkinter import filedialog, messagebox
+
+from model import Model
 
 
 class Controller:
-    """Conecta Vista y Modelo; maneja hilos, exportación y actualización de geometría."""
+    """Controlador del patrón MVC."""
 
-    def __init__(self, model, view):
+    def __init__(self, model: Model, view) -> None:
         self.model = model
         self.view = view
         self.view.set_controller(self)
-        self.last_best_design = None
 
-    def run_optimization(self):
-        """Inicia la optimización en un hilo para no congelar la UI."""
+        # Resultados de la última corrida:
+        # {"best": {...}, "trials": [ ... ]}
+        self.results = None
+
+    # ---------------- Acciones principales ----------------
+
+    def run_optimization(self) -> None:
         params = self.view.get_parameters()
         if params is None:
-            self.view.run_button.configure(state="normal", text="🚀 Iniciar Optimización")
+            self.view.run_button.configure(state="normal", text="Buscar diseño óptimo")
             return
 
-        # Configurar geometrías en el modelo
         try:
-            geoms = params.pop('geometries')
-            self.model.update_geometry(geoms['stope'], geoms['drift'], geoms['pivot'])
+            geoms = params.pop("geometries")
+            self.model.update_geometry(geoms["stope"], geoms["drift"], geoms["pivot"])
             self.view.log_message("Geometrías cargadas correctamente.")
-        except Exception as e:
-            self.view.log_message(f"❌ Error al cargar geometrías: {e}")
-            self.view.run_button.configure(state="normal", text="🚀 Iniciar Optimización")
+        except Exception as exc:
+            self.view.log_message(f"❌ Error al cargar geometrías: {exc}")
+            self.view.run_button.configure(state="normal", text="Buscar diseño óptimo")
             return
-
-        # Limpiar vistas previas
-        self.view.log_textbox.delete("1.0", "end")
-        for i in self.view.results_tree.get_children():
-            self.view.results_tree.delete(i)
-        self.view.export_button.configure(state="disabled")
 
         def task():
-            best = self.model.optimizer.run(params, log=self.view.log_message)
-            self.last_best_design = best
-            self.view.after(0, self.view.show_results, best)
+            try:
+                out = self.model.optimizer.run(params, log=self.view.log_message)
+            except Exception as exc:
+                # Log + reactivar UI aunque haya reventado Shapely por una geometría
+                self.view.after(0, self.view.log_message, f"❌ Error en optimización: {exc}")
+                self.view.after(0, self.view.run_button.configure,
+                                {"state": "normal", "text": "Buscar diseño óptimo"})
+                return
+
+            self.results = out
+            self.view.after(0, self.view.show_results, out)
 
         threading.Thread(target=task, daemon=True).start()
 
-    def export_best_design(self):
-        """Exporta el mejor diseño a JSON (tiros y cargas)."""
-        if not self.last_best_design:
-            messagebox.showwarning("Exportar", "No hay diseño para exportar. Ejecuta primero.")
+
+    # ---------------- Soporte para la vista ----------------
+
+    def get_trial_by_index(self, idx: int):
+        """
+        Devuelve la alternativa (trial) por índice de fila (tabla de la vista).
+        """
+        if not self.results or not self.results.get("trials"):
+            return None
+        trials = self.results["trials"]
+        if 0 <= idx < len(trials):
+            return trials[idx]
+        return None
+
+    def export_best_design(self) -> None:
+        """
+        Exporta a JSON la geometría (holes + charges) del mejor por costo.
+        """
+        if not self.results or not self.results.get("best"):
+            messagebox.showwarning("Exportar", "No hay diseño para exportar.")
             return
+
+        best = self.results["best"]
 
         path = filedialog.asksaveasfilename(
             defaultextension=".json",
             filetypes=[("JSON", "*.json"), ("Todos", "*.*")],
-            title="Guardar diseño como..."
+            title="Guardar diseño (mejor costo) como..."
         )
         if not path:
             return
 
         try:
-            # Asegurar serialización (por si hay arrays numpy)
-            def _default(o):
-                if isinstance(o, np.ndarray):
-                    return o.tolist()
-                return o
-
             with open(path, "w", encoding="utf-8") as f:
-                json.dump(self.last_best_design["design"], f, indent=2, ensure_ascii=False, default=_default)
-
+                json.dump(best["design"], f, indent=2, ensure_ascii=False)
             self.view.log_message(f"✅ Diseño exportado: {path}")
-        except Exception as e:
-            self.view.log_message(f"❌ Error al exportar: {e}")
+        except Exception as exc:
+            self.view.log_message(f"❌ Error al exportar: {exc}")
