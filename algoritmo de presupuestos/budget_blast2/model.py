@@ -170,21 +170,34 @@ def _fix_polygon(coords: List[List[float]]) -> sgeom.Polygon:
 # Generador geométrico de abanicos 2D
 # ======================================
 
+# ======================================
+# Generador geométrico de abanicos 2D
+# ======================================
+
 class DrillFanGenerator:
     """
-    Genera tiros (collar/fondo) de un abanico 2D dentro de un caserón.
+    Genera tiros (collar/fondo) de un abanico 2D dentro de un caserón minero.
 
-    Parámetros del constructor
-    -------------------------
+    Esta clase implementa los cuatro métodos geométricos de diseño:
+    - 'angular' → separación angular constante (control por número de tiros)
+    - 'directo' → separación constante entre fondos consecutivos
+    - 'offset'  → tangencia entre círculos consecutivos (método clásico)
+    - 'aeci'    → avance casi constante en el contorno (offsets paralelos)
+
+    Cada método devuelve la geometría (collares y fondos) del abanico.
+
+    Parámetros
+    ----------
     stope_geom : list[list[float]]
-        Polígono del caserón (x, y) en metros.
+        Coordenadas (x, y) del polígono del caserón en metros.
     drift_geom : list[list[float]]
-        Polígono de la galería (x, y) en metros.
+        Coordenadas (x, y) del polígono de la galería.
     pivot_geom : list[float]
-        Punto pivote (x, y) desde donde abren los tiros.
+        Punto (x, y) del pivote de perforación (puede estar dentro o fuera de la galería).
     """
 
     def __init__(self, stope_geom, drift_geom, pivot_geom) -> None:
+        # Geometrías base
         self.stope = _fix_polygon(stope_geom)
         self.drift = _fix_polygon(drift_geom)
         self.pivot = sgeom.Point(pivot_geom)
@@ -192,27 +205,35 @@ class DrillFanGenerator:
         self._stope_border = self.stope.exterior
         self._drift_border = self.drift.exterior
 
+        # ----------------------------
+        # NORMALIZACIÓN GEOMÉTRICA
+        # ----------------------------
+        # 1️⃣ Si el pivote está dentro del caserón, muévelo hacia abajo (1 m bajo la base)
+        if self.stope.contains(self.pivot):
+            miny = self.stope.bounds[1]
+            self.pivot = sgeom.Point(self.pivot.x, miny - 1.0)
+
+        # 2️⃣ Calcula la línea base (referencia geométrica) desde el pivote al centroide del caserón
+        self._ref_line = sgeom.LineString([self.pivot, self.stope.centroid])
+
+        # 3️⃣ Define el ángulo de referencia (orientación natural del abanico)
+        (x1, y1), (x2, y2) = list(self._ref_line.coords)
+        dx, dy = x2 - x1, y2 - y1
+        self._ref_angle = np.degrees(np.arctan2(dy, dx))
+
+        # 4️⃣ Genera un rayo base (1e4 m de largo) en esa dirección
+        self._base_ray = sgeom.LineString([
+            self.pivot,
+            (
+                self.pivot.x + np.cos(np.radians(self._ref_angle)) * 1e4,
+                self.pivot.y + np.sin(np.radians(self._ref_angle)) * 1e4
+            ),
+        ])
+
     # ---------- auxiliares internos ----------
 
-    def _find_endpoints(
-        self, ray: sgeom.LineString, max_length: float
-    ) -> Tuple[Optional[sgeom.Point], Optional[sgeom.Point]]:
-        """
-        Encuentra el collar (intersección con galería) y el fondo (con caserón).
-        Si la longitud excede `max_length`, recorta el fondo sobre la línea.
-
-        Parámetros
-        ----------
-        ray : LineString
-            Rayo desde el pivote en una dirección dada.
-        max_length : float
-            Longitud máxima permitida (m) del tiro.
-
-        Returns
-        -------
-        (Point|None, Point|None)
-            (collar, toe). Si no hay intersecciones válidas, retorna (None, None).
-        """
+    def _find_endpoints(self, ray: sgeom.LineString, max_length: float) -> Tuple[Optional[sgeom.Point], Optional[sgeom.Point]]:
+        """Encuentra el collar (intersección con galería) y el fondo (intersección con caserón)."""
         coll_int = ray.intersection(self._drift_border)
         if coll_int.is_empty:
             return None, None
@@ -236,21 +257,8 @@ class DrillFanGenerator:
 
         return collar, toe
 
-    def _is_valid_hole(
-        self,
-        collar: Optional[sgeom.Point],
-        toe: Optional[sgeom.Point],
-        min_length: float,
-        stope: sgeom.Polygon
-    ) -> bool:
-        """
-        Valida un tiro por longitud mínima y que cruce el caserón.
-
-        Returns
-        -------
-        bool
-            True si hay collar y toe, longitud >= min_length e interseca el stope.
-        """
+    def _is_valid_hole(self, collar, toe, min_length, stope) -> bool:
+        """Valida que el tiro tenga longitud mínima y cruce efectivamente el caserón."""
         if not (collar and toe):
             return False
         hole = sgeom.LineString([collar, toe])
@@ -258,16 +266,8 @@ class DrillFanGenerator:
             return False
         return hole.intersects(stope)
 
-    # ---- helpers robustos para AECI ----
-
-    def _safe_parallel_offset(
-        self, line: sgeom.LineString, distance: float, side: str
-    ) -> Optional[sgeom.LineString]:
-        """
-        Devuelve un LineString usable para el offset paralelo de 'line'.
-        - Si Shapely devuelve MultiLineString, toma el segmento más cercano al pivote.
-        - Si falla o queda vacío, retorna None.
-        """
+    def _safe_parallel_offset(self, line, distance, side):
+        """Offset paralelo robusto (maneja geometrías complejas de Shapely)."""
         try:
             g = line.parallel_offset(distance=distance, side=side, join_style=2)
         except Exception:
@@ -276,27 +276,13 @@ class DrillFanGenerator:
             return None
         geoms = getattr(g, "geoms", [g])
         best = min(geoms, key=lambda seg: seg.distance(self.pivot))
-        if isinstance(best, sgeom.LineString):
-            return best
-        if hasattr(best, "coords"):
-            return sgeom.LineString(best.coords)
-        return None
+        return best if isinstance(best, sgeom.LineString) else None
 
     def _nearest_on(self, geometry, ref: sgeom.Point) -> Optional[sgeom.Point]:
-        """
-        Devuelve un 'Point' representativo en 'geometry' cercano a 'ref':
-        - Si geometry es Point → lo devuelve.
-        - Si es MultiPoint → el más cercano a 'ref'.
-        - Si es LineString/MultiLineString → toma el punto proyectado sobre el tramo más cercano.
-        - Si es Polygon → punto proyectado sobre el borde más cercano.
-        """
+        """Devuelve el punto más cercano a 'ref' dentro de la geometría dada."""
         if geometry is None or geometry.is_empty:
             return None
-
-        if isinstance(geometry, sgeom.Point):
-            return geometry
-
-        pts: List[sgeom.Point] = []
+        pts = []
         for g in getattr(geometry, "geoms", [geometry]):
             if isinstance(g, sgeom.Point):
                 pts.append(g)
@@ -307,43 +293,20 @@ class DrillFanGenerator:
                 ring = g.exterior
                 d = ring.project(ref)
                 pts.append(ring.interpolate(d))
+        return min(pts, key=lambda p: p.distance(ref)) if pts else None
 
-        if not pts:
-            return None
-        return min(pts, key=lambda p: p.distance(ref))
-
-    # ---------- Métodos de construcción (fieles a appRing) ----------
+    # ---------- MÉTODOS DE DISEÑO (fieles a appRing) ----------
 
     def generate_angular(self, params: Dict) -> Dict:
-        """
-        Espaciamiento angular constante (implementación iterativa fiel a appRing).
-
-        Parámetros esperados (dict)
-        ---------------------------
-        min_angle, max_angle : float
-            Rango angular (grados).
-        holes_number : int
-            Número de tiros a distribuir en el abanico.
-        max_length : float
-            Longitud máxima por tiro (m).
-        min_length : float, opcional
-            Longitud mínima por tiro (m). Default = 0.1.
-
-        Returns
-        -------
-        dict
-            {"geometry": [[collars...], [toes...]], "params": params}
-        """
+        """Distribuye los tiros en separación angular constante."""
         n = max(int(params.get("holes_number", 0)), 0)
         amin = float(params.get("min_angle", 0.0))
         amax = float(params.get("max_angle", 0.0))
         max_len = float(params.get("max_length", 0.0))
         min_len = float(params.get("min_length", 0.1))
-
         spacing = (amax - amin) / (n - 1) if n > 1 else 0.0
-        line = sgeom.LineString([self.pivot, (self.pivot.x, self.pivot.y + 1e4)])
-        line = saff.rotate(line, angle=amin, origin=self.pivot)
 
+        line = saff.rotate(self._base_ray, angle=amin, origin=self.pivot)
         collars, toes = [], []
         for _ in range(n):
             col, toe = self._find_endpoints(line, max_len)
@@ -351,38 +314,18 @@ class DrillFanGenerator:
                 collars.append(list(col.coords)[0])
                 toes.append(list(toe.coords)[0])
             line = saff.rotate(line, angle=spacing, origin=self.pivot)
-
         return {"geometry": [collars, toes], "params": dict(params)}
 
     def generate_direct(self, params: Dict) -> Dict:
-        """
-        “Directo”: mantiene distancia `spacing` entre los fondos consecutivos.
-
-        Parámetros esperados (dict)
-        ---------------------------
-        spacing : float
-            Espaciamiento buscado entre fondos (m).
-        min_angle, max_angle : float
-            Rango angular (grados).
-        max_length, min_length : float
-            Longitud máxima y mínima por tiro (m).
-
-        Returns
-        -------
-        dict
-            {"geometry": [[collars...], [toes...]], "params": params}
-        """
+        """Método directo: mantiene espaciamiento constante entre fondos consecutivos."""
         spacing = float(params.get("spacing", 0.0))
-        amin = float(params.get("min_angle", 0.0))
-        amax = float(params.get("max_angle", 0.0))
-        max_len = float(params.get("max_length", 0.0))
-        min_len = float(params.get("min_length", 0.1))
-
+        amin, amax = params.get("min_angle", 0.0), params.get("max_angle", 0.0)
+        max_len, min_len = params.get("max_length", 0.0), params.get("min_length", 0.1)
         collars, toes = [], []
-        ref = sgeom.LineString([self.pivot, (self.pivot.x, self.pivot.y + 1e4)])
+
+        ref = self._base_ray
         line = saff.rotate(ref, angle=amin, origin=self.pivot)
 
-        # primer tiro
         col, toe = self._find_endpoints(line, max_len)
         if not self._is_valid_hole(col, toe, min_len, self.stope):
             return {"geometry": [[], []], "params": dict(params)}
@@ -395,7 +338,7 @@ class DrillFanGenerator:
             if ints.is_empty or not hasattr(ints, "geoms"):
                 break
 
-            # elegir el que más avanza angularmente y queda dentro de límites
+            # elegir el punto que más avanza angularmente dentro del rango permitido
             best, best_delta = None, -1e9
             for p in ints.geoms:
                 nxt = sgeom.LineString([self.pivot, p])
@@ -406,7 +349,14 @@ class DrillFanGenerator:
 
             if best is None:
                 break
-            if best.distance(toe) < 1e-6:  # corte de seguridad: sin avance
+
+            # corte si no avanza angularmente o ya salió del caserón
+            if best.distance(toe) < 1e-6 or not sgeom.LineString([self.pivot, best]).intersects(self.stope):
+                break
+
+            # corte adicional: si el ángulo excede el máximo definido
+            abs_ang = _angle_between(ref, sgeom.LineString([self.pivot, best]))
+            if abs_ang > amax or abs_ang < amin:
                 break
 
             toe = best
@@ -421,96 +371,58 @@ class DrillFanGenerator:
         return {"geometry": [collars, toes], "params": dict(params)}
 
     def generate_offset(self, params: Dict) -> Dict:
-        """
-        “Offset” (tangencia/offset perpendicular) – implementación fiel a appRing.
-
-        Parámetros esperados (dict)
-        ---------------------------
-        spacing : float
-            Radio de tangencia utilizado para posicionar el siguiente fondo (m).
-        min_angle, max_angle : float
-            Rango angular (grados).
-        max_length, min_length : float
-            Longitud máxima y mínima por tiro (m).
-
-        Returns
-        -------
-        dict
-            {"geometry": [[collars...], [toes...]], "params": params}
-        """
+        """Método offset: usa tangencia circular (offset perpendicular)."""
         spacing = float(params.get("spacing", 0.0))
-        amin = float(params.get("min_angle", 0.0))
-        amax = float(params.get("max_angle", 0.0))
+        amin, amax = params.get("min_angle", 0.0), params.get("max_angle", 0.0)
         side_left = amax > amin
-        max_len = float(params.get("max_length", 0.0))
-        min_len = float(params.get("min_length", 0.1))
-
+        max_len, min_len = params.get("max_length", 0.0), params.get("min_length", 0.1)
         collars, toes = [], []
-        ref = sgeom.LineString([self.pivot, (self.pivot.x, self.pivot.y + 1e4)])
+        ref = self._base_ray
         line = saff.rotate(ref, angle=amin, origin=self.pivot)
-
         for _ in range(400):
             col, toe = self._find_endpoints(line, max_len)
             if not self._is_valid_hole(col, toe, min_len, self.stope):
                 break
-
             collars.append(list(col.coords)[0])
             toes.append(list(toe.coords)[0])
-
-            # usar fondo “largo” para tangencia (sin max_length)
             _, full_toe = self._find_endpoints(line, 1e6)
             if full_toe is None:
                 break
-
             tang = _get_tangents(full_toe, spacing, self.pivot)
             if tang.is_empty or not hasattr(tang, "geoms"):
                 break
-
-            # elegir el punto del lado correcto
             desired_side = "left" if side_left else "right"
             pts = [p for p in tang.geoms if _point_side(line, p) == desired_side]
-            if not pts:
+            if not pts or (toes and pts[0].distance(sgeom.Point(toes[-1])) < 1e-6):
                 break
-
-            # corte de seguridad: si no avanza respecto del último toe
-            if toes and pts[0].distance(sgeom.Point(toes[-1])) < 1e-6:
-                break
-
             line = sgeom.LineString([self.pivot, pts[0]])
-
         return {"geometry": [collars, toes], "params": dict(params)}
 
     def generate_aeci(self, params: Dict) -> Dict:
         """
-        “AECI”: avance casi-constante en contorno con offsets paralelos (fiel a appRing),
-        reforzado para espaciamientos grandes y retornos complejos de Shapely.
+        AECI (Avance En Contorno Interno) — versión fiel a appRing.
+        Genera tiros paralelos y progresivos siguiendo el contorno del caserón.
 
         Parámetros esperados (dict)
         ---------------------------
-        spacing : float
-            Espaciamiento buscado entre fondos (m).
-        min_angle, max_angle : float
-            Rango angular (grados).
-        max_length, min_length : float
-            Longitud máxima y mínima por tiro (m).
-
-        Returns
-        -------
-        dict
-            {"geometry": [[collars...], [toes...]], "params": params}
+        spacing : float  -> separación entre tiros (m)
+        min_angle, max_angle : float  -> rango angular (grados)
+        max_length, min_length : float  -> longitudes límites por tiro (m)
         """
-        spacing = float(params.get("spacing", 0.0))
+
+        spacing = float(params.get("spacing", 1.0))
         amin = float(params.get("min_angle", 0.0))
         amax = float(params.get("max_angle", 0.0))
         side = "left" if amax > amin else "right"
-        max_len = float(params.get("max_length", 0.0))
-        min_len = float(params.get("min_length", 0.1))
+        max_len = float(params.get("max_length", 12.0))
+        min_len = float(params.get("min_length", 0.3))
 
         collars, toes = [], []
+
         ref = sgeom.LineString([self.pivot, (self.pivot.x, self.pivot.y + 1e4)])
         line = saff.rotate(ref, angle=amin, origin=self.pivot)
 
-        # Cap de spacing por dimensión del caserón (evita objetivos imposibles)
+        # Cap de espaciamiento para evitar casos degenerados
         min_dim = min(
             (self.stope.bounds[2] - self.stope.bounds[0]),
             (self.stope.bounds[3] - self.stope.bounds[1]),
@@ -522,70 +434,45 @@ class DrillFanGenerator:
             if not line.intersects(self.stope):
                 break
 
-            col, toe = self._find_endpoints(line, max_len)
-            if not self._is_valid_hole(col, toe, min_len, self.stope):
+            collar, toe = self._find_endpoints(line, max_len)
+            if not self._is_valid_hole(collar, toe, min_len, self.stope):
                 break
 
-            collars.append(list(col.coords)[0])
+            collars.append(list(collar.coords)[0])
             toes.append(list(toe.coords)[0])
 
-            # Intentos con backoff si offsets fallan
-            attempts = 0
-            next_line = None
-            local_spacing = eff_spacing
-
-            while attempts < 3 and next_line is None:
-                off1 = self._safe_parallel_offset(line, 0.5 * local_spacing, side)
-                off2 = self._safe_parallel_offset(line, 1.0 * local_spacing, side)
-                if off1 is None or off2 is None:
-                    attempts += 1
-                    local_spacing *= 0.8
-                    continue
-
-                ints = off1.intersection(self._stope_border)
-                if ints.is_empty:
-                    attempts += 1
-                    local_spacing *= 0.8
-                    continue
-
-                pivot_int = _sort_points(ints, self.pivot)[-1] if hasattr(ints, "geoms") else self._nearest_on(ints, self.pivot)
-                if pivot_int is None:
-                    attempts += 1
-                    local_spacing *= 0.8
-                    continue
-
-                perp = saff.rotate(off1, angle=(-90 if side == "left" else 90), origin=pivot_int)
-                nxt_geom = perp.intersection(off2)
-                nxt_pt = nxt_geom if isinstance(nxt_geom, sgeom.Point) else self._nearest_on(nxt_geom, pivot_int)
-                if nxt_pt is None:
-                    attempts += 1
-                    local_spacing *= 0.8
-                    continue
-
-                cand = sgeom.LineString([self.pivot, nxt_pt])
-                abs_ang = _angle_between(ref, cand)
-                if not (amin <= abs_ang <= amax):
-                    attempts += 1
-                    local_spacing *= 0.8
-                    continue
-
-                if toes and nxt_pt.distance(sgeom.Point(toes[-1])) < 1e-6:
-                    attempts += 1
-                    local_spacing *= 0.8
-                    continue
-
-                next_line = cand  # éxito
-
-            if next_line is None:
+            # --- Generar offsets paralelos ---
+            off1 = self._safe_parallel_offset(line, 0.5 * eff_spacing, side)
+            off2 = self._safe_parallel_offset(line, eff_spacing, side)
+            if off1 is None or off2 is None:
                 break
 
-            line = next_line
-            eff_spacing = local_spacing  # mantener spacing efectivo
+            ints = off1.intersection(self._stope_border)
+            if ints.is_empty:
+                break
+
+            # elegir el punto más alejado del pivote
+            pivot_int = _sort_points(ints, self.pivot)[-1]
+            perp = saff.rotate(off1, angle=(-90 if side == "left" else 90), origin=pivot_int)
+
+            nxt_geom = perp.intersection(off2)
+            nxt_pt = nxt_geom if isinstance(nxt_geom, sgeom.Point) else self._nearest_on(nxt_geom, pivot_int)
+            if nxt_pt is None:
+                break
+
+            cand = sgeom.LineString([self.pivot, nxt_pt])
+            abs_ang = _angle_between(ref, cand)
+            if not (amin <= abs_ang <= amax):
+                break
+
+            if toes and nxt_pt.distance(sgeom.Point(toes[-1])) < 1e-6:
+                break
+
+            line = cand
 
         return {"geometry": [collars, toes], "params": dict(params)}
 
-
-# =========================
+    # =========================
 # Diseñador de cargas
 # =========================
 
@@ -733,11 +620,16 @@ class DesignEvaluator:
 # =========================
 # Optimizador
 # =========================
+# =========================
+# Optimizador
+# =========================
 
 class Optimizer:
     """
-    Recorre S en el rango dado (o N para 'angular'), evalúa costo y conserva
-    todas las alternativas válidas. Devuelve el mejor por costo y la lista completa.
+    Recorre el rango de espaciamiento S (o número de tiros N en el caso 'angular'),
+    evalúa el costo y conserva todas las alternativas válidas.
+
+    Devuelve el mejor diseño por costo y la lista completa de opciones dentro del presupuesto.
     """
 
     def __init__(self, generator: DrillFanGenerator, charge_designer: ChargeDesigner,
@@ -748,20 +640,20 @@ class Optimizer:
 
     def run(self, cfg: Dict, log: Callable[[str], None]) -> Optional[Dict]:
         """
-        Ejecuta la optimización.
+        Ejecuta la optimización iterando sobre S o N según el método.
 
         Parámetros
         ----------
         cfg : dict
             Debe incluir:
               - design_method: {'angular'|'directo'|'offset'|'aeci'}
-              - s_min, s_max: int (para 'angular' es N_tiros; para otros es S en m)
+              - s_min, s_max: float (o int para 'angular')
               - presupuesto_maximo: float
               - min_angle, max_angle, min_length, max_length
               - stemming (para cargas)
               - unit_costs: dict (ver DesignEvaluator)
         log : callable
-            Función para imprimir mensajes en la UI.
+            Función callback para registrar mensajes en la interfaz.
 
         Returns
         -------
@@ -771,20 +663,28 @@ class Optimizer:
                 "best":   {"S", "method", "design", "cost", "num_holes"},
                 "trials": [ ... mismas claves por cada alternativa válida ... ]
               }
-            Si no hay válidos: None
+            Si no hay válidos, retorna None.
         """
         method = (cfg.get("design_method") or "angular").lower()
-        smin = int(cfg.get("s_min", 5))
-        smax = int(cfg.get("s_max", 15))
+        smin = float(cfg.get("s_min", 1.0))
+        smax = float(cfg.get("s_max", 5.0))
         budget = float(cfg.get("presupuesto_maximo", 0.0))
         unit_costs = dict(cfg.get("unit_costs", {}))
 
-        unit = "tiros" if method == "angular" else "m (S)"
-        log(f"▶ Método: {method} | S={smin}:{smax} {unit} | Presupuesto={budget:,.2f}")
+        # Determinar tipo de variable: discreta (N) o continua (S)
+        if method == "angular":
+            S_values = range(int(smin), int(smax) + 1)
+            unit_label = "tiros"
+        else:
+            # Paso de 0.5 m para espaciamientos continuos
+            S_values = np.arange(smin, smax + 0.001, 0.5)
+            unit_label = "m (S)"
+
+        log(f"▶ Método: {method} | S={smin}–{smax} {unit_label} | Presupuesto=${budget:,.2f}")
 
         trials: List[Dict] = []
-        for S in range(smin, smax + 1):
-            log(f"\n— Probando S={S} …")
+        for S in S_values:
+            log(f"\n— Probando S={S:.2f} …")
             base = {
                 "min_angle": float(cfg.get("min_angle", -45.0)),
                 "max_angle": float(cfg.get("max_angle", 45.0)),
@@ -792,9 +692,9 @@ class Optimizer:
                 "min_length": float(cfg.get("min_length", 0.3)),
             }
 
-            # generar tiros según método
+            # Generar tiros según método seleccionado
             if method == "angular":
-                holes = self.generator.generate_angular({**base, "holes_number": S})
+                holes = self.generator.generate_angular({**base, "holes_number": int(S)})
             elif method == "directo":
                 holes = self.generator.generate_direct({**base, "spacing": float(S)})
             elif method == "offset":
@@ -802,41 +702,44 @@ class Optimizer:
             elif method == "aeci":
                 holes = self.generator.generate_aeci({**base, "spacing": float(S)})
             else:
-                holes = self.generator.generate_angular({**base, "holes_number": S})
+                holes = self.generator.generate_angular({**base, "holes_number": int(S)})
 
             if not holes["geometry"][0]:
-                log("   · Geometría vacía/no válida.")
+                log("   · Geometría vacía o sin intersección con caserón.")
                 continue
 
-            # diseñar cargas
+            # Diseñar cargas según longitud de taco (stemming)
             charges = self.charge_designer.get_charges(
                 holes,
                 {"stemming": float(cfg.get("stemming", 0.0))}
             )
             design = {"holes": holes, "charges": charges}
 
+            # Calcular costo total
             cost = self.evaluator.calculate_total_cost(design, unit_costs)
             n_tiros = len(holes["geometry"][0])
-            log(f"   · Tiros={n_tiros} | Costo={cost:,.2f}")
 
-            if cost <= budget:
-                log("   · ✅ Dentro del presupuesto")
+            log(f"   · Tiros generados: {n_tiros} | Costo total: ${cost:,.2f}")
+
+            # Verificar restricción de presupuesto
+            if cost <= budget and n_tiros > 0:
+                log("   · ✅ Dentro del presupuesto.")
                 trials.append({
-                    "S": S,
+                    "S": float(S),
                     "method": method,
                     "design": design,
                     "cost": float(cost),
                     "num_holes": int(n_tiros),
                 })
             else:
-                log("   · ❌ Excede presupuesto")
+                log("   · ❌ Excede presupuesto o diseño vacío.")
 
         if not trials:
             log("\n✖ No se encontró diseño válido.")
             return None
 
         best = min(trials, key=lambda d: d["cost"])
-        log(f"\n🏁 Mejor costo = {best['cost']:,.2f} | método={method} | S={best['S']}")
+        log(f"\n🏁 Mejor costo = ${best['cost']:,.2f} | Método = {method} | S = {best['S']:.2f}")
 
         return {"best": best, "trials": trials}
 

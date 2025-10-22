@@ -286,28 +286,130 @@ class View(ctk.CTk):
 
     def _update_ui_for_method(self, method_name: Optional[str] = None) -> None:
         """
-        Muestra/oculta los campos de S según el método elegido.
+        Muestra/oculta los campos según el método elegido y ajusta valores
+        + geometrías predeterminadas típicas para obtener un patrón representativo.
 
-        - 'angular'  → pide N° de tiros (S_min/S_max) y oculta espaciamiento.
-        - otros      → pide espaciamiento (m) y oculta N° de tiros.
+        - 'angular' → abanico radial (galería centrada)
+        - 'directo' → fondo paralelo (caserón frente)
+        - 'offset'  → curva tangencial
+        - 'aeci'    → contorno superior con abanico paralelo
         """
         if method_name is None:
             method_name = self.method_combo.get().strip().lower()
 
+        # --- Mostrar / ocultar campos ---
         if method_name == "angular":
-            # Mostrar N° tiros
             self.holes_label.grid()
             self.s_frame_holes.grid()
-            # Ocultar espaciamiento
             self.spacing_label.grid_remove()
             self.s_frame_spacing.grid_remove()
         else:
-            # Mostrar espaciamiento
             self.spacing_label.grid()
             self.s_frame_spacing.grid()
-            # Ocultar N° tiros
             self.holes_label.grid_remove()
             self.s_frame_holes.grid_remove()
+
+        # --- Valores y geometrías por método ---
+        if method_name == "aeci":
+            # --- Geometría tipo: caserón arriba, galería base ---
+            self.stope_geom_entry.delete("1.0", "end")
+            self.stope_geom_entry.insert("1.0", "[[-5,-2],[6,-2],[6,8],[-5,8]]")
+            self.drift_geom_entry.delete("1.0", "end")
+            self.drift_geom_entry.insert("1.0", "[[-2.5,-4],[2.5,-4],[2.5,-2],[-2.5,-2]]")
+            self.pivot_geom_entry.delete(0, "end")
+            self.pivot_geom_entry.insert(0, "[0.0,-3.0]")
+
+            # --- Parámetros ---
+            self.s_min_spacing_entry.delete(0, "end")
+            self.s_min_spacing_entry.insert(0, "1.0")
+            self.s_max_spacing_entry.delete(0, "end")
+            self.s_max_spacing_entry.insert(0, "3.0")
+            self.min_angle_entry.delete(0, "end")
+            self.min_angle_entry.insert(0, "-20")
+            self.max_angle_entry.delete(0, "end")
+            self.max_angle_entry.insert(0, "20")
+            self.min_len_entry.delete(0, "end")
+            self.min_len_entry.insert(0, "0.3")
+            self.max_len_entry.delete(0, "end")
+            self.max_len_entry.insert(0, "12.0")
+            self.stemming_entry.delete(0, "end")
+            self.stemming_entry.insert(0, "2.0")
+
+        elif method_name == "angular":
+            # --- Geometría tipo: galería centrada en el caserón ---
+            self.stope_geom_entry.delete("1.0", "end")
+            self.stope_geom_entry.insert("1.0", "[[-6,-4],[6,-4],[6,6],[-6,6]]")
+            self.drift_geom_entry.delete("1.0", "end")
+            self.drift_geom_entry.insert("1.0", "[[-2,-2],[2,-2],[2,2],[-2,2]]")
+            self.pivot_geom_entry.delete(0, "end")
+            self.pivot_geom_entry.insert(0, "[0.0,0.0]")
+
+            # --- Parámetros ---
+            self.s_min_holes_entry.delete(0, "end")
+            self.s_min_holes_entry.insert(0, "6")
+            self.s_max_holes_entry.delete(0, "end")
+            self.s_max_holes_entry.insert(0, "10")
+            self.min_angle_entry.delete(0, "end")
+            self.min_angle_entry.insert(0, "-90")
+            self.max_angle_entry.delete(0, "end")
+            self.max_angle_entry.insert(0, "90")
+            self.min_len_entry.delete(0, "end")
+            self.min_len_entry.insert(0, "2.0")
+            self.max_len_entry.delete(0, "end")
+            self.max_len_entry.insert(0, "10.0")
+            self.stemming_entry.delete(0, "end")
+            self.stemming_entry.insert(0, "2.0")
+
+        elif method_name == "directo":
+            # --- Geometría tipo appRing: galería ligeramente dentro del caserón ---
+            self.stope_geom_entry.delete("1.0", "end")
+            self.stope_geom_entry.insert("1.0", "[[-5,-1],[6,-1],[6,6],[-5,6]]")
+            self.drift_geom_entry.delete("1.0", "end")
+            self.drift_geom_entry.insert("1.0", "[[-2.5,-4],[2.5,-4],[2.5,-1],[-2.5,-1]]")
+            self.pivot_geom_entry.delete(0, "end")
+            self.pivot_geom_entry.insert(0, "[0.0,-3.0]")
+
+            # --- Parámetros típicos (más amplios para asegurar intersección) ---
+            self.s_min_spacing_entry.delete(0, "end")
+            self.s_min_spacing_entry.insert(0, "1.0")
+            self.s_max_spacing_entry.delete(0, "end")
+            self.s_max_spacing_entry.insert(0, "3.0")
+            self.min_angle_entry.delete(0, "end")
+            self.min_angle_entry.insert(0, "-30")
+            self.max_angle_entry.delete(0, "end")
+            self.max_angle_entry.insert(0, "30")
+            self.min_len_entry.delete(0, "end")
+            self.min_len_entry.insert(0, "2.0")
+            self.max_len_entry.delete(0, "end")
+            self.max_len_entry.insert(0, "12.0")
+            self.stemming_entry.delete(0, "end")
+            self.stemming_entry.insert(0, "2.0")
+
+        elif method_name == "offset":
+            # --- Geometría tipo: caserón lateral (tangencial) ---
+            self.stope_geom_entry.delete("1.0", "end")
+            self.stope_geom_entry.insert("1.0", "[[0,-4],[8,-4],[8,4],[0,4]]")
+            self.drift_geom_entry.delete("1.0", "end")
+            self.drift_geom_entry.insert("1.0", "[[-3,-2],[0,-2],[0,2],[-3,2]]")
+            self.pivot_geom_entry.delete(0, "end")
+            self.pivot_geom_entry.insert(0, "[-2.5,0.0]")
+
+            # --- Parámetros ---
+            self.s_min_spacing_entry.delete(0, "end")
+            self.s_min_spacing_entry.insert(0, "0.5")
+            self.s_max_spacing_entry.delete(0, "end")
+            self.s_max_spacing_entry.insert(0, "2.0")
+            self.min_angle_entry.delete(0, "end")
+            self.min_angle_entry.insert(0, "-45")
+            self.max_angle_entry.delete(0, "end")
+            self.max_angle_entry.insert(0, "45")
+            self.min_len_entry.delete(0, "end")
+            self.min_len_entry.insert(0, "2.0")
+            self.max_len_entry.delete(0, "end")
+            self.max_len_entry.insert(0, "10.0")
+            self.stemming_entry.delete(0, "end")
+            self.stemming_entry.insert(0, "2.0")
+
 
     def get_parameters(self) -> Optional[dict]:
         """
