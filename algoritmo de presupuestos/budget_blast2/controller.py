@@ -50,17 +50,52 @@ class Controller:
 
         def task():
             try:
-                out = self.model.optimizer.run(params, log=self.view.log_message)
+                # Ejecutar optimizador (bloque principal)
+                out = self.model.optimizer.run(params, log=lambda msg: 
+                                            self.view.after(0, self.view.log_message, msg))
+
+                # Salida nula o vacía
+                if not out:
+                    self.view.after(0, self.view.log_message, "✖ No se encontró diseño válido.")
+                    self.view.after(0, self.view.run_button.configure,
+                                    {"state": "normal", "text": "Buscar diseño óptimo"})
+                    return
+
+                # Mostrar resultados
+                self.results = out
+                self.view.after(0, self.view.show_results, out)
+
+                # Mostrar métricas del mejor diseño
+                best = out.get("best", {})
+                metrics = best.get("metrics", {}) or {}
+                design = best.get("design", {}) or {}
+                frag_data = design.get("frag_data", {}) or {}
+                p80 = frag_data.get("P80", 0.0)
+
+                def _print_summary():
+                    if metrics:
+                        self.view.log_message("\n--- Métricas del mejor diseño ---")
+                        self.view.log_message(
+                            f"  • Energía específica efectiva: {metrics.get('energia_especifica_efectiva', 0):.3f} MJ/m³")
+                        self.view.log_message(
+                            f"  • Volumen volado: {metrics.get('volumen', 0):.1f} m³")
+                        self.view.log_message(
+                            f"  • Costo por m³: ${metrics.get('costo_por_m3', 0):.2f}")
+                        if p80 > 0:
+                            self.view.log_message(
+                                f"  • Fragmentación P80 estimada: {p80:.1f} mm")
+
+                    self.view.run_button.configure(state="normal", text="Buscar diseño óptimo")
+
+                self.view.after(0, _print_summary)
+
             except Exception as exc:
-                # Log + reactivar UI aunque haya reventado Shapely por una geometría
+                # Captura global del hilo
                 self.view.after(0, self.view.log_message, f"❌ Error en optimización: {exc}")
                 self.view.after(0, self.view.run_button.configure,
                                 {"state": "normal", "text": "Buscar diseño óptimo"})
-                return
 
-            self.results = out
-            self.view.after(0, self.view.show_results, out)
-
+        import threading
         threading.Thread(target=task, daemon=True).start()
 
 

@@ -60,6 +60,7 @@ class View(ctk.CTk):
         self._create_geom_tab(self.input_tabs.add("1. Geometría y Presupuesto"))
         self._create_design_tab(self.input_tabs.add("2. Parámetros de Diseño"))
         self._create_costs_tab(self.input_tabs.add("3. Costos Unitarios"))
+        self._create_rock_tab(self.input_tabs.add("4. Propiedades de Roca"))
 
         self.run_button = ctk.CTkButton(
             left_frame, text="Buscar diseño óptimo", command=self._on_run_clicked
@@ -173,6 +174,16 @@ class View(ctk.CTk):
         self.stemming_entry = ctk.CTkEntry(c_frame)
         self.stemming_entry.insert(0, "2.0")
         self.stemming_entry.grid(row=0, column=1, sticky="ew")
+        
+        ctk.CTkLabel(c_frame, text="Retardo entre tiros (ms):").grid(row=1, column=0, sticky="w", pady=2)
+        self.delay_step_entry = ctk.CTkEntry(c_frame)
+        self.delay_step_entry.insert(0, "25.0")
+        self.delay_step_entry.grid(row=1, column=1, sticky="ew")
+
+        ctk.CTkLabel(c_frame, text="Retardo entre filas (ms):").grid(row=2, column=0, sticky="w", pady=2)
+        self.delay_row_entry = ctk.CTkEntry(c_frame)
+        self.delay_row_entry.insert(0, "50.0")
+        self.delay_row_entry.grid(row=2, column=1, sticky="ew")
 
         # Configurar visibilidad inicial
         self._update_ui_for_method()
@@ -201,16 +212,52 @@ class View(ctk.CTk):
         self.expl_dens_entry = ctk.CTkEntry(c_frame)
         self.expl_dens_entry.insert(0, "1.1")
         self.expl_dens_entry.grid(row=2, column=1, sticky="ew")
+        
+        ctk.CTkLabel(c_frame, text="Energía explosivo (MJ/kg):").grid(row=3, column=0, sticky="w", pady=2)
+        self.expl_energy_entry = ctk.CTkEntry(c_frame)
+        self.expl_energy_entry.insert(0, "4.2")
+        self.expl_energy_entry.grid(row=3, column=1, sticky="ew")
 
         ctk.CTkLabel(c_frame, text="Diámetro carga (mm):").grid(row=3, column=0, sticky="w", pady=2)
         self.charge_diam_entry = ctk.CTkEntry(c_frame)
         self.charge_diam_entry.insert(0, "64.0")
-        self.charge_diam_entry.grid(row=3, column=1, sticky="ew")
+        self.charge_diam_entry.grid(row=4, column=1, sticky="ew")
 
         ctk.CTkLabel(c_frame, text="Costo detonador ($/un):").grid(row=4, column=0, sticky="w", pady=2)
         self.det_cost_entry = ctk.CTkEntry(c_frame)
         self.det_cost_entry.insert(0, "18.0")
-        self.det_cost_entry.grid(row=4, column=1, sticky="ew")
+        self.det_cost_entry.grid(row=5, column=1, sticky="ew")
+    
+    def _create_rock_tab(self, tab) -> None:
+        """Tab para parámetros de fragmentación del modelo Kuz-Ram."""
+        ctk.CTkLabel(
+            tab, text="Parámetros del modelo de fragmentación (Kuz-Ram)",
+            font=ctk.CTkFont(weight="bold")
+        ).pack(anchor="w", padx=10, pady=(10, 5))
+
+        r_frame = ctk.CTkFrame(tab, fg_color="transparent")
+        r_frame.pack(fill="x", padx=10)
+        r_frame.grid_columnconfigure(1, weight=1)
+
+        ctk.CTkLabel(r_frame, text="A (factor de fragmentación):").grid(row=0, column=0, sticky="w", pady=2)
+        self.rock_A_entry = ctk.CTkEntry(r_frame)
+        self.rock_A_entry.insert(0, "5.0")
+        self.rock_A_entry.grid(row=0, column=1, sticky="ew")
+
+        ctk.CTkLabel(r_frame, text="b (exponente de energía):").grid(row=1, column=0, sticky="w", pady=2)
+        self.rock_b_entry = ctk.CTkEntry(r_frame)
+        self.rock_b_entry.insert(0, "0.8")
+        self.rock_b_entry.grid(row=1, column=1, sticky="ew")
+
+        ctk.CTkLabel(r_frame, text="E_ref (energía ref. MJ/m³):").grid(row=2, column=0, sticky="w", pady=2)
+        self.rock_Eref_entry = ctk.CTkEntry(r_frame)
+        self.rock_Eref_entry.insert(0, "0.4")
+        self.rock_Eref_entry.grid(row=2, column=1, sticky="ew")
+
+        ctk.CTkLabel(r_frame, text="k (factor de escala):").grid(row=3, column=0, sticky="w", pady=2)
+        self.rock_k_entry = ctk.CTkEntry(r_frame)
+        self.rock_k_entry.insert(0, "1.0")
+        self.rock_k_entry.grid(row=3, column=1, sticky="ew")
 
     # ---------------- Panel derecho (outputs) ----------------
 
@@ -230,6 +277,9 @@ class View(ctk.CTk):
 
         self._create_results_tab(self.output_tabs.add("Alternativas"))
         self._create_log_tab(self.output_tabs.add("Log de Proceso"))
+        self._create_curves_tab(self.output_tabs.add("Curvas de rendimiento"))
+        self._create_compare_tab(self.output_tabs.add("Comparador de curvas"))
+
 
     def _create_results_tab(self, tab) -> None:
         """Tab con tabla de alternativas, botones y gráfico."""
@@ -277,6 +327,132 @@ class View(ctk.CTk):
         """Tab con el log de proceso."""
         self.log_textbox = ctk.CTkTextbox(tab, wrap="word")
         self.log_textbox.pack(expand=True, fill="both")
+   
+    def _create_curves_tab(self, tab) -> None:
+        """Tab con curvas comparativas de costo, energía y fragmentación."""
+        tab.grid_columnconfigure(0, weight=1)
+        tab.grid_rowconfigure(0, weight=1)
+
+        self.fig_curves, (self.ax_cost, self.ax_energy, self.ax_frag) = plt.subplots(
+            3, 1, figsize=(6, 8), facecolor="#696767"
+        )
+        self.fig_curves.subplots_adjust(hspace=0.45)
+
+        # === Estilo base ===
+        for ax in (self.ax_cost, self.ax_energy, self.ax_frag):
+            ax.set_facecolor("#2B2B2B")
+            # 🔹 Aquí forzamos todo a blanco (etiquetas, ticks, títulos)
+            ax.tick_params(axis="x", colors="white", labelsize=10)
+            ax.tick_params(axis="y", colors="white", labelsize=10)
+            for spine in ("left", "bottom", "right", "top"):
+                ax.spines[spine].set_color("white")
+            ax.title.set_color("white")
+            ax.xaxis.label.set_color("white")
+            ax.yaxis.label.set_color("white")
+            # 🔹 Fondo de etiquetas
+            ax.grid(True, linestyle="--", alpha=0.3, color="gray")
+
+        # === Costo ===
+        self.ax_cost.set_title("Costo total vs Espaciamiento", color="white", fontsize=12, pad=10)
+        self.ax_cost.set_xlabel("Espaciamiento S (m)", color="white", fontsize=10)
+        self.ax_cost.set_ylabel("Costo total ($)", color="white", fontsize=10)
+
+        # === Energía ===
+        self.ax_energy.set_title("Energía específica vs Espaciamiento", color="white", fontsize=12, pad=10)
+        self.ax_energy.set_xlabel("Espaciamiento S (m)", color="white", fontsize=10)
+        self.ax_energy.set_ylabel("Energía específica (MJ/m³)", color="white", fontsize=10)
+
+        # === Fragmentación ===
+        self.ax_frag.set_title("Fragmentación P80 vs Espaciamiento", color="white", fontsize=12, pad=10)
+        self.ax_frag.set_xlabel("Espaciamiento S (m)", color="white", fontsize=10)
+        self.ax_frag.set_ylabel("P80 (mm)", color="white", fontsize=10)
+
+        # 🔧 Forzar color blanco en todos los textos de ejes
+        for ax in (self.ax_cost, self.ax_energy, self.ax_frag):
+            if ax.xaxis.label:
+                ax.xaxis.label.set_color("white")
+            if ax.yaxis.label:
+                ax.yaxis.label.set_color("white")
+            for label in ax.get_xticklabels() + ax.get_yticklabels():
+                label.set_color("white")
+
+        # === Canvas ===
+        self.canvas_curves = FigureCanvasTkAgg(self.fig_curves, master=tab)
+        self.canvas_curves.get_tk_widget().pack(side="top", fill="both", expand=True)
+    
+    def _create_compare_tab(self, tab) -> None:
+        """Pestaña para comparar variables con ejes personalizables."""
+        tab.grid_columnconfigure(0, weight=1)
+        tab.grid_rowconfigure(1, weight=1)
+
+        # --- Panel de controles ---
+        ctrl_frame = ctk.CTkFrame(tab, fg_color="transparent")
+        ctrl_frame.grid(row=0, column=0, sticky="ew", padx=10, pady=5)
+        ctrl_frame.grid_columnconfigure(5, weight=1)
+
+        ctk.CTkLabel(ctrl_frame, text="Eje X:").grid(row=0, column=0, padx=(5, 2))
+        self.x_combo = ctk.CTkComboBox(
+            ctrl_frame, values=["Espaciamiento S", "Costo total", "Energía específica", "P80"]
+        )
+        self.x_combo.set("Espaciamiento S")
+        self.x_combo.grid(row=0, column=1, padx=(0, 15))
+
+        ctk.CTkLabel(ctrl_frame, text="Eje Y:").grid(row=0, column=2, padx=(5, 2))
+        self.y_combo = ctk.CTkComboBox(
+            ctrl_frame, values=["Costo total", "Energía específica", "P80"]
+        )
+        self.y_combo.set("P80")
+        self.y_combo.grid(row=0, column=3, padx=(0, 15))
+
+        self.btn_plot_compare = ctk.CTkButton(
+            ctrl_frame, text="Graficar", command=self._on_compare_plot
+        )
+        self.btn_plot_compare.grid(row=0, column=4, padx=(5, 10))
+
+        # --- Área del gráfico ---
+        plot_frame = ctk.CTkFrame(tab, fg_color="transparent")
+        plot_frame.grid(row=1, column=0, sticky="nsew", padx=10, pady=5)
+
+        self.fig_compare, self.ax_compare = plt.subplots(facecolor="#242424")
+        self.ax_compare.set_facecolor("#2B2B2B")
+        self.ax_compare.tick_params(axis="x", colors="white")
+        self.ax_compare.tick_params(axis="y", colors="white")
+        for spine in ("left", "bottom", "right", "top"):
+            self.ax_compare.spines[spine].set_color("white")
+        self.ax_compare.grid(True, linestyle="--", alpha=0.3, color="gray")
+
+        self.canvas_compare = FigureCanvasTkAgg(self.fig_compare, master=plot_frame)
+        self.canvas_compare.get_tk_widget().pack(fill="both", expand=True)
+   
+    def _on_compare_plot(self) -> None:
+        """Dibuja un gráfico según los ejes seleccionados."""
+        if not hasattr(self, "_table_trials") or not self._table_trials:
+            messagebox.showinfo("Sin datos", "Primero ejecuta una simulación.")
+            return
+
+        x_name = self.x_combo.get()
+        y_name = self.y_combo.get()
+        trials = self._table_trials
+
+        # Mapeo de nombres a datos reales
+        mapping = {
+            "Espaciamiento S": [t["S"] for t in trials],
+            "Costo total": [t["cost"] for t in trials],
+            "Energía específica": [t["metrics"].get("energia_especifica_efectiva", 0) for t in trials],
+            "P80": [t["metrics"].get("P80", 0) for t in trials],
+        }
+
+        X = mapping.get(x_name, [])
+        Y = mapping.get(y_name, [])
+
+        # Redibujar
+        self.ax_compare.clear()
+        self.ax_compare.plot(X, Y, marker="o", color="deepskyblue", linewidth=2)
+        self.ax_compare.set_xlabel(x_name, color="white")
+        self.ax_compare.set_ylabel(y_name, color="white")
+        self.ax_compare.set_title(f"{y_name} vs {x_name}", color="white")
+        self.ax_compare.grid(True, linestyle="--", alpha=0.3, color="gray")
+        self.canvas_compare.draw()
 
     # ---------------- API con el controlador ----------------
 
@@ -452,13 +628,25 @@ class View(ctk.CTk):
                 "min_length": float(self.min_len_entry.get()),
                 "max_length": float(self.max_len_entry.get()),
                 "stemming": float(self.stemming_entry.get()),
+                "delay_step_ms": float(self.delay_step_entry.get()),
+                "delay_row_ms": float(self.delay_row_entry.get()),
+
+
                 "unit_costs": {
                     "perforacion_por_metro": float(self.drill_cost_entry.get()),
                     "explosivo_por_kg": float(self.expl_cost_entry.get()),
                     "densidad_explosivo_gcc": float(self.expl_dens_entry.get()),
                     "diametro_carga_mm": float(self.charge_diam_entry.get()),
                     "detonador_por_unidad": float(self.det_cost_entry.get()),
+                    "energia_explosivo_MJkg": float(self.expl_energy_entry.get()),
                 },
+                "rock_params" : {
+                        "A": float(self.rock_A_entry.get()),
+                        "b": float(self.rock_b_entry.get()),
+                        "E_ref": float(self.rock_Eref_entry.get()),
+                        "k": float(self.rock_k_entry.get()),
+                }
+
             }
             return params
 
@@ -522,8 +710,49 @@ class View(ctk.CTk):
             f"  • Mejor costo: ${best['cost']:,.2f} | "
             f"S usado = {best['S']} | tiros = {best['num_holes']}"
         )
+        self.plot_curves(trials_sorted)
         self.run_button.configure(state="normal", text="Buscar diseño óptimo")
 
+    def plot_curves(self, trials: list[dict]) -> None:
+        """Grafica curvas de costo, energía y fragmentación en la pestaña correspondiente."""
+        if not trials:
+            return
+
+        S_vals = [t.get("S", 0) for t in trials]
+        E_vals = [t.get("E_especifica") or t.get("metrics", {}).get("energia_especifica", 0) for t in trials]
+        C_vals = [t.get("cost") or t.get("metrics", {}).get("costo_total", 0) for t in trials]
+        P80_vals = [t.get("P80") or t.get("metrics", {}).get("P80", 0) for t in trials]
+
+        # Limpiar ejes
+        for ax in (self.ax_cost, self.ax_energy, self.ax_frag):
+            ax.clear()
+            ax.set_facecolor("#2B2B2B")
+            ax.tick_params(axis="x", colors="white")
+            ax.tick_params(axis="y", colors="white")
+            for spine in ("left", "bottom", "right", "top"):
+                ax.spines[spine].set_color("white")
+            ax.grid(True, linestyle="--", alpha=0.3, color="gray")
+
+        # Costo
+        self.ax_cost.plot(S_vals, C_vals, marker="o", color="deepskyblue")
+        self.ax_cost.set_title("Costo total vs Espaciamiento", color="white")
+        self.ax_cost.set_xlabel("Espaciamiento S (m)")
+        self.ax_cost.set_ylabel("Costo total ($)")
+
+        # Energía
+        self.ax_energy.plot(S_vals, E_vals, marker="s", color="orange")
+        self.ax_energy.set_title("Energía específica vs Espaciamiento", color="white")
+        self.ax_energy.set_xlabel("Espaciamiento S (m)")
+        self.ax_energy.set_ylabel("Energía específica (MJ/m³)")
+
+        # Fragmentación
+        self.ax_frag.plot(S_vals, P80_vals, marker="^", color="lightgreen")
+        self.ax_frag.set_title("Fragmentación P80 vs Espaciamiento", color="white")
+        self.ax_frag.set_xlabel("Espaciamiento S (m)")
+        self.ax_frag.set_ylabel("P80 (mm)")
+
+        self.fig_curves.tight_layout()
+        self.canvas_curves.draw()
 
     def log_message(self, message: str) -> None:
         """Añade un mensaje al log y mantiene el scroll al final."""

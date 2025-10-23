@@ -516,11 +516,346 @@ class ChargeDesigner:
                 toes_out.append(list(charge_toe.coords)[0])
 
         return {"geometry": [collars_out, toes_out]}
+# =========================
+# Evaluador de carga (energía y volumen)
+# =========================
+
+class ChargeEvaluator:
+    """
+    Calcula la energía liberada y el volumen volado, siguiendo la lógica de RingCharge.
+
+    Este módulo amplía la información de las cargas generadas:
+    - masa total y por tiro (kg)
+    - energía total (MJ)
+    - energía específica (MJ/m³)
+    - longitud promedio de carga
+    - volumen estimado del bloque volado
+
+    Parámetros esperados
+    --------------------
+    charges : dict
+        {"geometry": [[collars...], [toes...]]}
+    unit_costs : dict
+        Debe incluir densidad_explosivo_gcc, diametro_carga_mm
+    spacing : float
+        Espaciamiento (m) actual evaluado.
+    burden : float, opcional
+        Carga o burden estimado (m). Si no se indica, se usa spacing.
+    energia_unidad : float, opcional
+        Energía del explosivo (MJ/kg). ANFO ≈ 4.2 MJ/kg.
+    """
+
+    def __init__(self) -> None:
+        self.ENERGIA_ANFO_MJkg = 4.2  # constante típica de ANFO
+
+    def evaluate_energy(
+        self, charges: Dict, unit_costs: Dict,
+        spacing: float, burden: Optional[float] = None,
+        energia_unidad: Optional[float] = None
+    ) -> Dict:
+        """Evalúa propiedades energéticas y volumétricas del diseño."""
+
+        rho = float(unit_costs.get("densidad_explosivo_gcc", 1.1))
+        dmm = float(unit_costs.get("diametro_carga_mm", 64.0))
+        ql = 7.854e-4 * rho * (dmm ** 2)  # kg/m
+
+        energia_u = energia_unidad or self.ENERGIA_ANFO_MJkg
+        geo = charges.get("geometry", [[], []])
+
+        if not geo or not geo[0] or len(geo[0]) != len(geo[1]):
+            return {
+                "M_total": 0.0,
+                "E_total": 0.0,
+                "E_especifica": 0.0,
+                "L_prom": 0.0,
+                "V_volado": 0.0,
+            }
+
+        a = np.array(geo[0], dtype=float)
+        b = np.array(geo[1], dtype=float)
+        longitudes = np.linalg.norm(b - a, axis=1)
+        L_prom = float(np.mean(longitudes))
+        L_total = float(np.sum(longitudes))
+
+        # masa total de explosivo (kg)
+        M_total = L_total * ql
+
+        # energía total liberada (MJ)
+        E_total = M_total * energia_u
+
+        # burden estimado (si no se da, se usa spacing)
+        B = float(burden or spacing)
+        V_volado = float(B * spacing * L_prom * len(longitudes))
+
+        E_esp = (E_total / V_volado) if V_volado > 0 else 0.0
+
+        return {
+            "M_total": M_total,
+            "E_total": E_total,
+            "E_especifica": E_esp,
+            "L_prom": L_prom,
+            "V_volado": V_volado,
+        }
 
 
 # =========================
 # Evaluación de costos
 # =========================
+# =========================
+# Diseñador de secuencia de disparo (Timing)
+# =========================
+
+class TimingDesigner:
+    """
+    Asigna orden y retardos a los tiros, siguiendo la lógica simplificada de RingTiming.
+
+    Objetivo
+    --------
+    - Numerar los tiros en orden de encendido.
+    - Calcular el retardo de cada uno (ms) según su posición.
+    - Calcular la carga máxima por retardo (Q_max) para evaluar PPV.
+
+    Parámetros esperados
+    --------------------
+    charges : dict
+        {"geometry": [[collars...], [toes...]]}
+    charge_eval : dict
+        Resultados energéticos del ChargeEvaluator (contiene M_total, L_prom, etc.)
+    delay_step_ms : float, opcional
+        Intervalo de retardo entre tiros consecutivos (ms). Por defecto 25 ms.
+    delay_row_ms : float, opcional
+        Retardo adicional entre filas (ms). Por defecto 50 ms.
+    """
+
+    def __init__(self) -> None:
+        self.delay_step_ms = 25.0
+        self.delay_row_ms = 50.0
+
+    def assign_timing(
+        self,
+        charges: Dict,
+        charge_eval: Dict,
+        delay_step_ms: Optional[float] = None,
+        delay_row_ms: Optional[float] = None
+    ) -> Dict:
+        """Asigna tiempos de encendido a cada tiro y calcula Qmax."""
+
+        delays = []
+        coords = []
+        geo = charges.get("geometry", [[], []])
+        if not geo or not geo[0]:
+            return {"timing": [], "Q_max": 0.0}
+
+        collars, toes = np.array(geo[0]), np.array(geo[1])
+        n_tiros = len(collars)
+        delay_step = delay_step_ms or self.delay_step_ms
+        delay_row = delay_row_ms or self.delay_row_ms
+
+        # Calcular masas individuales (asumir carga uniforme por tiro)
+        M_total = float(charge_eval.get("M_total", 0.0))
+        M_por_tiro = (M_total / n_tiros) if n_tiros > 0 else 0.0
+
+        # Ordenar tiros por coordenadas (de izquierda a derecha, luego abajo hacia arriba)
+        indices = np.lexsort((collars[:, 1], collars[:, 0]))
+
+        delay_dicts = []
+        fila_actual = 0
+        fila_y = None
+        for i, idx in enumerate(indices, start=1):
+            x, y = collars[idx]
+            # Determinar fila (si Y cambia > 1 m se asume nueva fila)
+            if fila_y is None:
+                fila_y = y
+            elif abs(y - fila_y) > 1.0:
+                fila_actual += 1
+                fila_y = y
+            delay_ms = fila_actual * delay_row + (i - 1) * delay_step
+
+            delay_dicts.append({
+                "id": i,
+                "coords": (float(x), float(y)),
+                "delay_ms": delay_ms,
+                "charge_kg": M_por_tiro,
+            })
+            delays.append(delay_ms)
+            coords.append((x, y))
+
+        # Calcular carga máxima por retardo (Q_max)
+        delay_groups = {}
+        for d in delay_dicts:
+            t = round(d["delay_ms"], 1)
+            delay_groups.setdefault(t, 0.0)
+            delay_groups[t] += d["charge_kg"]
+
+        Q_max = max(delay_groups.values()) if delay_groups else 0.0
+
+        return {"timing": delay_dicts, "Q_max": Q_max}
+
+# =========================
+# Evaluador global del ring
+# =========================
+
+class RingEvaluator:
+    """
+    Evalúa globalmente un diseño de tronadura (ring) integrando
+    métricas geométricas, energéticas y económicas, siguiendo
+    la filosofía de AppRing.
+
+    Propósito
+    ----------
+    - Obtener energía total (MJ) y específica (MJ/m³).
+    - Calcular volumen volado aproximado según espaciamiento (S),
+      burden (B) y longitud efectiva de perforación (L).
+    - Evaluar costo total y unitario ($, $/m³).
+    - Estimar eficiencia energética (energía efectiva 85 %).
+    - Dejar listos los parámetros para cálculo de fragmentación (P80).
+
+    Parámetros de entrada
+    ---------------------
+    design : dict
+        {"holes": {...}, "charges": {...}} generado por el modelo.
+    unit_costs : dict
+        {
+          "densidad_explosivo_gcc": float,
+          "diametro_carga_mm": float,
+          "energia_explosivo_MJkg": float,
+          "explosivo_por_kg": float,
+          "perforacion_por_metro": float,
+          "detonador_por_unidad": float
+        }
+
+    Retorna
+    --------
+    dict con métricas globales:
+        {
+          "volumen": m³,
+          "masa_explosivo": kg,
+          "energia_total": MJ,
+          "energia_efectiva": MJ,
+          "energia_especifica": MJ/m³,
+          "energia_especifica_efectiva": MJ/m³,
+          "costo_total": $,
+          "costo_por_m3": $/m³,
+          "energia_por_dolar": MJ/$,
+          "eficiencia_energetica": %
+        }
+    """
+
+    def evaluate_ring(self, design: dict, unit_costs: dict) -> dict:
+        # --- Extraer geometrías ---
+        holes = design.get("holes", {})
+        charges = design.get("charges", {})
+
+        # --- Longitudes perforadas y cargadas ---
+        evaluator = DesignEvaluator()
+        L_perf = evaluator.total_drilled_length(holes)  # m
+        L_carga = evaluator.total_charge_length(charges)  # m
+
+        # --- Parámetros del explosivo ---
+        rho = float(unit_costs.get("densidad_explosivo_gcc", 1.1))  # g/cc
+        D = float(unit_costs.get("diametro_carga_mm", 64.0))  # mm
+        E_u = float(unit_costs.get("energia_explosivo_MJkg", 4.2))  # MJ/kg
+        Ce = float(unit_costs.get("explosivo_por_kg", 2.2))  # $/kg
+
+        # --- Cálculos de carga ---
+        q_l = 7.854e-4 * rho * (D ** 2)       # kg/m (carga lineal)
+        M_total = q_l * L_carga               # masa total de explosivo (kg)
+        E_total = M_total * E_u               # energía total (MJ)
+
+        # --- Geometría global del bloque ---
+        params = holes.get("params", {})
+        S = float(params.get("spacing", 2.0))
+        B = float(params.get("burden", S))    # si no se define burden, se asume igual a S
+        n_tiros = len(holes.get("geometry", [[], []])[0])
+        L_prom = L_perf / max(n_tiros, 1)     # longitud promedio de tiro
+
+        # Volumen aproximado de roca volada
+        V = S * B * L_prom * max(n_tiros, 1) * 0.8  # factor 0.8 ≈ eficiencia de llenado
+
+        # --- Costos ---
+        C_total = evaluator.calculate_total_cost(design, unit_costs)
+        C_m3 = C_total / V if V > 0 else 0.0
+
+        # --- Energía específica y eficiencia ---
+        Eesp = E_total / V if V > 0 else 0.0
+        eficiencia = 0.85
+        E_efectiva = E_total * eficiencia
+        Eesp_ef = E_efectiva / V if V > 0 else 0.0
+
+        # --- Relaciones energéticas ---
+        EporUSD = E_total / C_total if C_total > 0 else 0.0
+
+        return {
+            "volumen": V,
+            "masa_explosivo": M_total,
+            "energia_total": E_total,
+            "energia_efectiva": E_efectiva,
+            "energia_especifica": Eesp,
+            "energia_especifica_efectiva": Eesp_ef,
+            "costo_total": C_total,
+            "costo_por_m3": C_m3,
+            "energia_por_dolar": EporUSD,
+            "eficiencia_energetica": eficiencia * 100.0,
+        }
+
+# =========================
+# Fragmentación (modelo Kuz-Ram)
+# =========================
+
+class RingFragmentation:
+    """
+    Estima la fragmentación (P80, P50, P20) en función de la energía específica
+    y las propiedades de la roca, siguiendo el modelo empírico de Kuz-Ram
+    usado en AppRing y calibrado para MJ/m³.
+    """
+
+    def __init__(self) -> None:
+        # Valores típicos base (pueden ajustarse según litología)
+        self.defaults = {
+            "A": 5.0,     # factor de fragmentación base (roca media)
+            "b": 0.8,     # exponente empírico de energía
+            "E_ref": 0.4, # MJ/m³, energía de referencia para roca media
+            "k": 1.0,     # factor de escala (ajuste dimensional)
+        }
+
+    def evaluate_fragmentation(
+        self,
+        ring_metrics: Dict,
+        rock_params: Optional[Dict] = None
+    ) -> Dict:
+        """Evalúa P80, P50, P20 según el modelo Kuz-Ram estabilizado."""
+
+        if not ring_metrics:
+            return {"P80": 0.0, "P50": 0.0, "P20": 0.0, "relacion_energia": 0.0}
+
+        # Parámetros de roca
+        params = self.defaults.copy()
+        if rock_params:
+            params.update(rock_params)
+
+        E_esp = max(float(ring_metrics.get("energia_especifica_efectiva", 0.0)), 1e-3)
+        E_ref = max(float(params.get("E_ref", 0.4)), 1e-3)
+        A = float(params.get("A", 5.0))
+        b = float(params.get("b", 0.8))
+        k = float(params.get("k", 1.0))
+
+        # Relación energía / referencia
+        ratio = E_esp / E_ref
+
+        # Modelo empírico (Kuz-Ram)
+        # Nota: usamos 1000 para pasar de metros a milímetros si A está calibrado en metros.
+        P80 = A * k * (E_ref / E_esp) ** b * 1000.0  # mm
+        P80 = float(np.clip(P80, 10.0, 400.0))        # limitar a 10–400 mm
+
+        P50 = P80 * 0.67
+        P20 = P80 * 0.33
+
+        return {
+            "P80": P80,
+            "P50": P50,
+            "P20": P20,
+            "relacion_energia": ratio,
+        }
 
 class DesignEvaluator:
     """
@@ -620,9 +955,7 @@ class DesignEvaluator:
 # =========================
 # Optimizador
 # =========================
-# =========================
-# Optimizador
-# =========================
+
 
 class Optimizer:
     """
@@ -632,11 +965,16 @@ class Optimizer:
     Devuelve el mejor diseño por costo y la lista completa de opciones dentro del presupuesto.
     """
 
-    def __init__(self, generator: DrillFanGenerator, charge_designer: ChargeDesigner,
-                 evaluator: DesignEvaluator) -> None:
-        self.generator = generator
-        self.charge_designer = charge_designer
-        self.evaluator = evaluator
+    def __init__(self, 
+                 generator: DrillFanGenerator, 
+                 charge_designer: ChargeDesigner,
+                 evaluator: DesignEvaluator,  
+                 ring_evaluator: RingEvaluator
+                 ) -> None:
+                self.generator = generator
+                self.charge_designer = charge_designer
+                self.evaluator = evaluator
+                self.ring_evaluator = ring_evaluator
 
     def run(self, cfg: Dict, log: Callable[[str], None]) -> Optional[Dict]:
         """
@@ -684,55 +1022,82 @@ class Optimizer:
 
         trials: List[Dict] = []
         for S in S_values:
-            log(f"\n— Probando S={S:.2f} …")
-            base = {
-                "min_angle": float(cfg.get("min_angle", -45.0)),
-                "max_angle": float(cfg.get("max_angle", 45.0)),
-                "max_length": float(cfg.get("max_length", 30.0)),
-                "min_length": float(cfg.get("min_length", 0.3)),
-            }
+            try:
+                log(f"\n— Probando S={S:.2f} …")
+                base = {
+                    "min_angle": float(cfg.get("min_angle", -45.0)),
+                    "max_angle": float(cfg.get("max_angle", 45.0)),
+                    "max_length": float(cfg.get("max_length", 30.0)),
+                    "min_length": float(cfg.get("min_length", 0.3)),
+                }
 
-            # Generar tiros según método seleccionado
-            if method == "angular":
-                holes = self.generator.generate_angular({**base, "holes_number": int(S)})
-            elif method == "directo":
-                holes = self.generator.generate_direct({**base, "spacing": float(S)})
-            elif method == "offset":
-                holes = self.generator.generate_offset({**base, "spacing": float(S)})
-            elif method == "aeci":
-                holes = self.generator.generate_aeci({**base, "spacing": float(S)})
-            else:
-                holes = self.generator.generate_angular({**base, "holes_number": int(S)})
+                # Generar tiros
+                if method == "angular":
+                    holes = self.generator.generate_angular({**base, "holes_number": int(S)})
+                elif method == "directo":
+                    holes = self.generator.generate_direct({**base, "spacing": float(S)})
+                elif method == "offset":
+                    holes = self.generator.generate_offset({**base, "spacing": float(S)})
+                elif method == "aeci":
+                    holes = self.generator.generate_aeci({**base, "spacing": float(S)})
+                else:
+                    holes = self.generator.generate_angular({**base, "holes_number": int(S)})
 
-            if not holes["geometry"][0]:
-                log("   · Geometría vacía o sin intersección con caserón.")
+                if not holes["geometry"][0]:
+                    log("   · Geometría vacía o sin intersección con caserón.")
+                    continue
+
+                # Cargas
+                charges = self.charge_designer.get_charges(
+                    holes, {"stemming": float(cfg.get("stemming", 0.0))}
+                )
+                design = {"holes": holes, "charges": charges}
+
+                # Evaluaciones (todas dentro de try)
+                try:
+                    charge_eval = ChargeEvaluator()
+                    energy_data = charge_eval.evaluate_energy(charges, unit_costs, spacing=float(S))
+                    design["energy_data"] = energy_data
+                    timing_designer = TimingDesigner()
+                    timing_data = timing_designer.assign_timing(charges, energy_data)
+                    design["timing_data"] = timing_data
+
+                    ring_metrics = self.ring_evaluator.evaluate_ring(design, unit_costs)
+
+                    # 👇 Agregamos aquí el cálculo de fragmentación, dentro del mismo try
+                    frag_model = RingFragmentation()
+                    rock_params = cfg.get("rock_params", {})
+                    frag_data = frag_model.evaluate_fragmentation(ring_metrics, rock_params)
+                    design["frag_data"] = frag_data
+                    ring_metrics.update(frag_data)
+
+                except Exception as e_inner:
+                    log(f"   ⚠️ Error interno al evaluar cargas/timing/fragmentación: {e_inner}")
+                    continue
+
+                cost = ring_metrics.get("costo_total", 0.0)
+                n_tiros = len(holes["geometry"][0])
+
+                log(f"   · Tiros generados: {n_tiros} | Costo total: ${cost:,.2f}")
+
+                if cost <= budget and n_tiros > 0:
+                    trials.append({
+                        "S": float(S),
+                        "method": method,
+                        "design": design,
+                        "metrics": ring_metrics,
+                        "cost": cost,
+                        "num_holes": int(n_tiros),
+                        "P80": frag_data.get("P80", 0.0),
+                    })
+                    log("   · ✅ Dentro del presupuesto.")
+                else:
+                    log("   · ❌ Excede presupuesto o diseño vacío.")
+
+            except Exception as e:
+                log(f"❌ Error general en iteración S={S:.2f}: {e}")
                 continue
 
-            # Diseñar cargas según longitud de taco (stemming)
-            charges = self.charge_designer.get_charges(
-                holes,
-                {"stemming": float(cfg.get("stemming", 0.0))}
-            )
-            design = {"holes": holes, "charges": charges}
-
-            # Calcular costo total
-            cost = self.evaluator.calculate_total_cost(design, unit_costs)
-            n_tiros = len(holes["geometry"][0])
-
-            log(f"   · Tiros generados: {n_tiros} | Costo total: ${cost:,.2f}")
-
-            # Verificar restricción de presupuesto
-            if cost <= budget and n_tiros > 0:
-                log("   · ✅ Dentro del presupuesto.")
-                trials.append({
-                    "S": float(S),
-                    "method": method,
-                    "design": design,
-                    "cost": float(cost),
-                    "num_holes": int(n_tiros),
-                })
-            else:
-                log("   · ❌ Excede presupuesto o diseño vacío.")
 
         if not trials:
             log("\n✖ No se encontró diseño válido.")
@@ -764,11 +1129,17 @@ class Model:
         drift_geom = [[-2.5, -2.0], [2.5, -2.0], [2.5, 2.0], [-2.5, 2.0]]
         pivot_geom = [0.0, 0.0]
 
+        # Componentes del modelo
         self.generator = DrillFanGenerator(stope_geom, drift_geom, pivot_geom)
         self.charge_designer = ChargeDesigner()
         self.evaluator = DesignEvaluator()
-        self.optimizer = Optimizer(self.generator, self.charge_designer, self.evaluator)
-
+        self.ring_evaluator = RingEvaluator()  
+        self.optimizer = Optimizer(
+            self.generator,
+            self.charge_designer,
+            self.evaluator,
+            self.ring_evaluator,
+        )
     def update_geometry(self, stope_geom, drift_geom, pivot_geom) -> None:
         """
         Actualiza las geometrías base del modelo. Repara polígonos inválidos.
@@ -783,4 +1154,9 @@ class Model:
             Punto pivote (x, y).
         """
         self.generator = DrillFanGenerator(stope_geom, drift_geom, pivot_geom)
-        self.optimizer = Optimizer(self.generator, self.charge_designer, self.evaluator)
+        self.optimizer = Optimizer(
+            self.generator, 
+            self.charge_designer, 
+            self.evaluator,
+            self.ring_evaluator,
+        )
