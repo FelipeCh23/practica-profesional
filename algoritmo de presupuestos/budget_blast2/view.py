@@ -12,7 +12,6 @@ Mejoras clave:
 Notas:
 - No se cambian nombres de funciones del modelo; solo UI y docstrings.
 """
-
 from __future__ import annotations
 
 import json
@@ -22,15 +21,17 @@ import customtkinter as ctk
 from tkinter import ttk, messagebox
 
 import matplotlib.pyplot as plt
+import numpy as np
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
+from plot_utils import generar_curvas_isocosto
 
 class View(ctk.CTk):
     """Ventana principal de la aplicación (Vista del patrón MVC)."""
 
     def __init__(self) -> None:
         super().__init__()
-        self.title("Optimizador profesional de tronaduras")
+        self.title("Módulo de Diseño por Costo Objetivo de Tronaduras")
         self.geometry("1400x900")
         self.controller = None  # se inyecta desde el Controller
 
@@ -277,7 +278,6 @@ class View(ctk.CTk):
 
         self._create_results_tab(self.output_tabs.add("Alternativas"))
         self._create_log_tab(self.output_tabs.add("Log de Proceso"))
-        self._create_curves_tab(self.output_tabs.add("Curvas de rendimiento"))
         self._create_compare_tab(self.output_tabs.add("Comparador de curvas"))
 
 
@@ -327,59 +327,7 @@ class View(ctk.CTk):
         """Tab con el log de proceso."""
         self.log_textbox = ctk.CTkTextbox(tab, wrap="word")
         self.log_textbox.pack(expand=True, fill="both")
-   
-    def _create_curves_tab(self, tab) -> None:
-        """Tab con curvas comparativas de costo, energía y fragmentación."""
-        tab.grid_columnconfigure(0, weight=1)
-        tab.grid_rowconfigure(0, weight=1)
 
-        self.fig_curves, (self.ax_cost, self.ax_energy, self.ax_frag) = plt.subplots(
-            3, 1, figsize=(6, 8), facecolor="#696767"
-        )
-        self.fig_curves.subplots_adjust(hspace=0.45)
-
-        # === Estilo base ===
-        for ax in (self.ax_cost, self.ax_energy, self.ax_frag):
-            ax.set_facecolor("#2B2B2B")
-            # 🔹 Aquí forzamos todo a blanco (etiquetas, ticks, títulos)
-            ax.tick_params(axis="x", colors="white", labelsize=10)
-            ax.tick_params(axis="y", colors="white", labelsize=10)
-            for spine in ("left", "bottom", "right", "top"):
-                ax.spines[spine].set_color("white")
-            ax.title.set_color("white")
-            ax.xaxis.label.set_color("white")
-            ax.yaxis.label.set_color("white")
-            # 🔹 Fondo de etiquetas
-            ax.grid(True, linestyle="--", alpha=0.3, color="gray")
-
-        # === Costo ===
-        self.ax_cost.set_title("Costo total vs Espaciamiento", color="white", fontsize=12, pad=10)
-        self.ax_cost.set_xlabel("Espaciamiento S (m)", color="white", fontsize=10)
-        self.ax_cost.set_ylabel("Costo total ($)", color="white", fontsize=10)
-
-        # === Energía ===
-        self.ax_energy.set_title("Energía específica vs Espaciamiento", color="white", fontsize=12, pad=10)
-        self.ax_energy.set_xlabel("Espaciamiento S (m)", color="white", fontsize=10)
-        self.ax_energy.set_ylabel("Energía específica (MJ/m³)", color="white", fontsize=10)
-
-        # === Fragmentación ===
-        self.ax_frag.set_title("Fragmentación P80 vs Espaciamiento", color="white", fontsize=12, pad=10)
-        self.ax_frag.set_xlabel("Espaciamiento S (m)", color="white", fontsize=10)
-        self.ax_frag.set_ylabel("P80 (mm)", color="white", fontsize=10)
-
-        # 🔧 Forzar color blanco en todos los textos de ejes
-        for ax in (self.ax_cost, self.ax_energy, self.ax_frag):
-            if ax.xaxis.label:
-                ax.xaxis.label.set_color("white")
-            if ax.yaxis.label:
-                ax.yaxis.label.set_color("white")
-            for label in ax.get_xticklabels() + ax.get_yticklabels():
-                label.set_color("white")
-
-        # === Canvas ===
-        self.canvas_curves = FigureCanvasTkAgg(self.fig_curves, master=tab)
-        self.canvas_curves.get_tk_widget().pack(side="top", fill="both", expand=True)
-    
     def _create_compare_tab(self, tab) -> None:
         """Pestaña para comparar variables con ejes personalizables."""
         tab.grid_columnconfigure(0, weight=1)
@@ -388,8 +336,9 @@ class View(ctk.CTk):
         # --- Panel de controles ---
         ctrl_frame = ctk.CTkFrame(tab, fg_color="transparent")
         ctrl_frame.grid(row=0, column=0, sticky="ew", padx=10, pady=5)
-        ctrl_frame.grid_columnconfigure(5, weight=1)
+        ctrl_frame.grid_columnconfigure(6, weight=1)
 
+        # Etiquetas y combos
         ctk.CTkLabel(ctrl_frame, text="Eje X:").grid(row=0, column=0, padx=(5, 2))
         self.x_combo = ctk.CTkComboBox(
             ctrl_frame, values=["Espaciamiento S", "Costo total", "Energía específica", "P80"]
@@ -404,10 +353,16 @@ class View(ctk.CTk):
         self.y_combo.set("P80")
         self.y_combo.grid(row=0, column=3, padx=(0, 15))
 
+        # --- Botones principales ---
         self.btn_plot_compare = ctk.CTkButton(
             ctrl_frame, text="Graficar", command=self._on_compare_plot
         )
         self.btn_plot_compare.grid(row=0, column=4, padx=(5, 10))
+        
+        self.btn_save_plot = ctk.CTkButton(
+            ctrl_frame, text="Guardar imagen", command=self._on_save_plot
+        )
+        self.btn_save_plot.grid(row=0, column=5, padx=(5, 10))
 
         # --- Área del gráfico ---
         plot_frame = ctk.CTkFrame(tab, fg_color="transparent")
@@ -423,21 +378,28 @@ class View(ctk.CTk):
 
         self.canvas_compare = FigureCanvasTkAgg(self.fig_compare, master=plot_frame)
         self.canvas_compare.get_tk_widget().pack(fill="both", expand=True)
-   
+
     def _on_compare_plot(self) -> None:
-        """Dibuja un gráfico según los ejes seleccionados."""
+        """Grafica según las variables seleccionadas; evita duplicar colorbars."""
         if not hasattr(self, "_table_trials") or not self._table_trials:
             messagebox.showinfo("Sin datos", "Primero ejecuta una simulación.")
             return
+
+        # 🔹 Limpieza segura antes de graficar
+        self.ax_compare.clear()
+        # Eliminar colorbars anteriores si existen
+        for artist in self.fig_compare.axes:
+            if artist is not self.ax_compare:
+                artist.remove()
 
         x_name = self.x_combo.get()
         y_name = self.y_combo.get()
         trials = self._table_trials
 
-        # Mapeo de nombres a datos reales
+        # Extraer datos base
         mapping = {
             "Espaciamiento S": [t["S"] for t in trials],
-            "Costo total": [t["cost"] for t in trials],
+            "Costo total": [t["metrics"].get("costo_total", 0) for t in trials],
             "Energía específica": [t["metrics"].get("energia_especifica_efectiva", 0) for t in trials],
             "P80": [t["metrics"].get("P80", 0) for t in trials],
         }
@@ -445,12 +407,24 @@ class View(ctk.CTk):
         X = mapping.get(x_name, [])
         Y = mapping.get(y_name, [])
 
-        # Redibujar
         self.ax_compare.clear()
-        self.ax_compare.plot(X, Y, marker="o", color="deepskyblue", linewidth=2)
-        self.ax_compare.set_xlabel(x_name, color="white")
-        self.ax_compare.set_ylabel(y_name, color="white")
-        self.ax_compare.set_title(f"{y_name} vs {x_name}", color="white")
+
+        # Caso especial: mapa de isocostos
+        if x_name == "Energía específica" and y_name == "P80":
+            from plot_utils import generar_curvas_isocosto
+            generar_curvas_isocosto(
+                self.ax_compare,
+                mapping["Energía específica"],
+                mapping["P80"],
+                mapping["Costo total"]
+            )
+        else:
+            # Gráfico comparativo normal
+            self.ax_compare.plot(X, Y, marker="o", color="deepskyblue", linewidth=2)
+            self.ax_compare.set_title(f"{y_name} vs {x_name}", color="white")
+            self.ax_compare.set_xlabel(x_name, color="white")
+            self.ax_compare.set_ylabel(y_name, color="white")
+
         self.ax_compare.grid(True, linestyle="--", alpha=0.3, color="gray")
         self.canvas_compare.draw()
 
@@ -691,7 +665,9 @@ class View(ctk.CTk):
         best = result_dict["best"]
 
         # >>> GUARDAR lista ORDENADA para que índice de tabla == índice de lista
-        self._table_trials = trials_sorted = sorted(trials, key=lambda d: d["cost"])
+        self._table_trials = trials_sorted = sorted(trials, key=lambda d: d["S"])
+        print("Orden final de espaciamientos:", [t["S"] for t in trials_sorted])
+
 
         for i, t in enumerate(trials_sorted):
             self.trials_tree.insert(
@@ -877,3 +853,12 @@ class View(ctk.CTk):
 
         self.ax.set_title("Todas las alternativas válidas", color="white")
         self.canvas_widget.draw()
+
+    def _on_save_plot(self) -> None:
+        """Guarda la figura mostrada en el comparador como imagen PNG."""
+        try:
+            filename = "grafico_comparador.png"
+            self.fig_compare.savefig(filename, dpi=300, bbox_inches="tight", facecolor="#242424")
+            messagebox.showinfo("Guardado exitoso", f"El gráfico se guardó como:\n{filename}")
+        except Exception as e:
+            messagebox.showerror("Error", f"No se pudo guardar el gráfico:\n{e}")

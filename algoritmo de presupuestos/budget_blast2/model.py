@@ -1102,7 +1102,10 @@ class Optimizer:
         if not trials:
             log("\n✖ No se encontró diseño válido.")
             return None
-
+        
+        # 🔹 Ordenar las alternativas por espaciamiento antes de analizar resultados
+        trials = sorted(trials, key=lambda t: t.get("S", 0))
+        
         best = min(trials, key=lambda d: d["cost"])
         log(f"\n🏁 Mejor costo = ${best['cost']:,.2f} | Método = {method} | S = {best['S']:.2f}")
 
